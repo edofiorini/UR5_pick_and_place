@@ -14,10 +14,6 @@
 
 class RobotArm
 {
-private:
-  KDL::Tree my_tree;
-  KDL::Chain chain;
-
 public:
   RobotArm(ros::NodeHandle nh_) {}
 

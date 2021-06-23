@@ -12,6 +12,13 @@
 #include <sstream>
 #include <cmath>
 #include <complex>
+#include <ros/ros.h>
+#include <ros/package.h>
+#include <image_transport/image_transport.h>
+
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/aruco.hpp>
 
 using namespace Eigen;
 
@@ -55,8 +62,8 @@ void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, fl
     count++;
   }
 
-  std::cout << "A coeff fifth polynomials: " << a0.coeff(0, 0) << " " << a1.coeff(0, 0) << " " << a2.coeff(0, 0) << " " << a3.coeff(0, 0) << " " << a4.coeff(0, 0) << " " << a5.coeff(0, 0) << "\n"
-            << std::endl;
+  // std::cout << "A coeff fifth polynomials: " << a0.coeff(0, 0) << " " << a1.coeff(0, 0) << " " << a2.coeff(0, 0) << " " << a3.coeff(0, 0) << " " << a4.coeff(0, 0) << " " << a5.coeff(0, 0) << "\n"
+            // << std::endl;
   for (int i = 0; i < length; i++)
   {
 
@@ -138,7 +145,7 @@ void circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matr
     count++;
   }
 
-  std::cout << "s "<< s << std::endl;
+  // std::cout << "s "<< s << std::endl;
 
   MatrixXd p_prime(3, length);
   // p_prime = [rho*cos((s/rho));rho*sin((s/rho));zeros(1,length(s))];
@@ -152,7 +159,7 @@ void circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matr
     p_prime(2, i) = zero.coeff(0, 0);
   }
 
-  std::cout << "p_prime:" << p_prime << std::endl;
+  // std::cout << "p_prime:" << p_prime << std::endl;
   MatrixXd R(3, 3);
 
   R.col(0) = (pi - c) / rho.coeff(0, 0);
@@ -335,7 +342,7 @@ void frenet_frame(MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &o_EE_t, Ma
   R.col(1) = o_EE_b.col(0);
   R.col(2) = o_EE_n.col(0);
 
-  std::cout << "R" << R << std::endl;
+  // std::cout << "R" << R << std::endl;
 
   PHI_i(0, 0) = atan2(sqrt(pow(R.coeff(0, 2), 2) + pow(R.coeff(1, 2), 2)), R.coeff(2, 2));
   PHI_i(1, 0) = atan2(R.coeff(1, 2), R.coeff(0, 2));
@@ -376,6 +383,74 @@ void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_t
     do_tilde.col(i) = l * sd.col(i);
     ddo_tilde.col(i) = l * sdd.col(i);
   }
+}
+
+
+// Message data
+cv_bridge::CvImagePtr imagePtr;
+cv::Mat K(3, 3, CV_64F);
+cv::Mat D(1, 5, CV_64F);
+
+// Image counter
+int imgCount = 0;
+
+// Topic
+ros::Publisher dataPub;
+ros::Subscriber imageSub, cameraSub;
+
+
+void cameraCallback(const sensor_msgs::CameraInfoConstPtr& msg) {
+    // Retrive camera matrix
+    for(int i=0; i<3; i++)
+        for(int j=0; j<3; j++)
+            K.at<double>(i, j) = msg->K[i*3+j];
+    // This callback is needed to be called just one time
+    cameraSub.shutdown();
+}
+
+void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
+    if(++imgCount < 5)
+        return;
+    imgCount = 0;
+
+    cv::Mat image, imageCopy;
+    try {
+        // Retrive image from camera topic
+        imagePtr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e) {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+    image = imagePtr->image;
+    cv::flip(image, image, 1); 
+    image.copyTo(imageCopy);
+
+    // Aruco detection
+    std::vector<int> ids;
+    std::vector<std::vector<cv::Point2f> > corners, rejCandidates;
+    cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();
+    cv::Ptr<cv::aruco::Dictionary> dictionary =
+        cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+    cv::aruco::detectMarkers(image, dictionary, corners, ids, parameters, rejCandidates);
+
+    // if at least one marker detected
+    if (ids.size() > 0) {
+        ROS_INFO("Cubes detected!");
+        cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
+
+        std::vector<cv::Vec3d> rvecs, tvecs;
+        cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
+        // draw axis for each marker
+        for(int i=0; i<ids.size(); i++)
+            cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
+
+    } else // Show rejected candidates
+        cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
+    // Show results
+    cv::imshow("out", imageCopy);
+
+    char key = (char) cv::waitKey(1);
 }
 
 /**
@@ -425,7 +500,7 @@ int main(int argc, char **argv)
       1;
 
   linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
-  //std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
+  //// std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
 
   int length2 = circular_length(pi, pf, Ts, c);
   MatrixXd p_tilde1(3, length);
@@ -433,7 +508,7 @@ int main(int argc, char **argv)
   MatrixXd ddp_tilde1(3, length);
 
   circular_tilde(T, p_tilde1, dp_tilde1, ddp_tilde1, pi, pf, c, ti, tf, Ts, length2);
-  //std::cout << "Circular_tilde: " << dp_tilde1.row(0) << "\n" << std::endl;
+  //// std::cout << "Circular_tilde: " << dp_tilde1.row(0) << "\n" << std::endl;
 
   // linear motion - Position in operational space without TIMING LAW
   MatrixXd support = pf - pi;
@@ -456,14 +531,14 @@ int main(int argc, char **argv)
   MatrixXd dp(3, length1);
   MatrixXd ddp(3, length1);
   //linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
-  std::cout << "Linear_motion: " << p << "\n" << std::endl;
-  //std::cout << s.cols() << " " << p.cols() << std::endl;
+  // // std::cout << "Linear_motion: " << p << "\n" << std::endl;
+  //// std::cout << s.cols() << " " << p.cols() << std::endl;
 
   MatrixXd p1(3, length2);
   MatrixXd dp1(3, length2);
   MatrixXd ddp1(3, length2);
   circular_motion(T, p1, dp1, ddp1, pi, pf, Ts, c, length2);
-  std::cout << "Circular_motion: " << p1 << "\n"<< std::endl;
+  // // std::cout << "Circular_motion: " << p1 << "\n"<< std::endl;
   // Frenet Frame to find the orientation of the end-effector
 
   MatrixXd o_EE_t(3, 2);
@@ -474,14 +549,14 @@ int main(int argc, char **argv)
 
   //frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
   frenet_frame(p1, dp1, ddp1, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
-  std::cout  << "PHI_i: " << PHI_i<< std::endl;
+  // // std::cout  << "PHI_i: " << PHI_i<< std::endl;
 
   // EE_orientation with the TIMING LAW
   MatrixXd o_tilde(3, length);
   MatrixXd do_tilde(3, length);
   MatrixXd ddo_tilde(3, length);
   EE_orientation(T, PHI_i, PHI_f, o_tilde, do_tilde, ddo_tilde, pi, pf, ti, tf, Ts);
-  std::cout << "o_tilde" << o_tilde << std::endl;
+  // // std::cout << "o_tilde" << o_tilde << std::endl;
   // Put the 3d coordinate togheter
   MatrixXd dataPosition(6, length);
   MatrixXd dataVelocities(6, length);
@@ -496,52 +571,30 @@ int main(int argc, char **argv)
   dataAcceleration.block(0, 0, 3, length) = ddp_tilde.block(0, 0, 3, length);
   dataAcceleration.block(3, 0, 3, length) = ddo_tilde.block(0, 0, 3, length);
 
-  //std::cout << dataAcceleration << std::endl;
+  //// std::cout << dataAcceleration << std::endl;
 
   // Ros node initialization
   ros::init(argc, argv, "talker");
   ros::NodeHandle n;
 
   RobotArm ra(n);
-  ra.IKinematics(0.0,0.0,0.0,0.0,0.0,0.0);
+  KDL::JntArray target_joints = ra.IKinematics(0.0,0.0,0.0,0.0,0.0,0.0);
+  // // std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
+  //     <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
+    
+  // Vision system
+  cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
+  imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
+  // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
+  ros::spin();
 
-  /**
-   * NodeHandle is the main access point to communications with the ROS system.
-   * The first NodeHandle constructed will fully initialize this node, and the last
-   * NodeHandle destructed will close down the node.
-   */
-
-  /**
-   * The advertise() function is how you tell ROS that you want to
-   * publish on a given topic name. This invokes a call to the ROS
-   * master node, which keeps a registry of who is publishing and who
-   * is subscribing. After this advertise() call is made, the master
-   * node will notify anyone who is trying to subscribe to this topic name,
-   * and they will in turn negotiate a peer-to-peer connection with this
-   * node.  advertise() returns a Publisher object which allows you to
-   * publish messages on that topic through a call to publish().  Once
-   * all copies of the returned Publisher object are destroyed, the topic
-   * will be automatically unadvertised.
-   *
-   * The second parameter to advertise() is the size of the message queue
-   * used for publishing messages.  If messages are published more quickly
-   * than we can send them, the number here specifies how many messages to
-   * buffer up before throwing some away.
-   */
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
   ros::Rate loop_rate(1);
   int back = 0;
-  /**
-   * A count of how many messages we have sent. This is used to create
-   * a unique string for each message.
-   */
   while (ros::ok())
   {
     back = 1 - back;
-    /**
-     * This is a message object. You stuff it with data, and then publish it.
-     */
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names = {
         "robot_arm_elbow_joint",
@@ -573,14 +626,7 @@ int main(int argc, char **argv)
 
     msg.points = points;
 
-    /**
-     * The publish() function is how you send messages. The parameter
-     * is the message object. The type of this object must agree with the type
-     * given as a template parameter to the advertise<>() call, as was done
-     * in the constructor above.
-     */
     chatter_pub.publish(msg);
-    //ROS_INFO("%s", msg.points.c_str());
     ros::spinOnce();
 
     loop_rate.sleep();

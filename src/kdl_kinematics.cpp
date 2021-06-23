@@ -19,7 +19,6 @@ class RobotArm
 private:
   KDL::Tree my_tree;
   KDL::Chain chain;
-
 public:
   RobotArm(ros::NodeHandle nh_)
   {
@@ -30,8 +29,7 @@ public:
     }
     KDL::SegmentMap::const_iterator root_seg;
     root_seg = my_tree.getRootSegment();
-    my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
-    
+    my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);  
   }
 
   KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
@@ -52,8 +50,7 @@ public:
       joint_states publish in alphabetical order, but for the kinematics you need the actual order
     */
     for(unsigned int i=0;i<nj;i++){
-        // jointpositions(i)= CURRENT_JOINTS_POSITION; 
-        jointpositions(i) = 0; // @TODO verify the current joints positions 
+        jointpositions(i)= 0; //@todo check this one 
         jointminpos(i) = -M_PI;
         jointmaxpos(i) = M_PI;
         jointmaxvel(i) = 0.5;
@@ -77,7 +74,7 @@ public:
     
     //Use directly a quaternion or create one from RPY values
     tf::Quaternion q1;
-    q1.setRPY(roll, pitch, yaw);
+    q1.setEuler(roll, pitch, yaw);
 
     //convert quaternion to rotation matrix
     tf::Matrix3x3 m_new1(q1.normalize());
@@ -95,9 +92,7 @@ public:
     double result = ik_p.CartToJnt(jointpositions, target, target_joints);
 
     std::cout<<"result ik_p "<<result<<std::endl;
-    std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-      <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
-    
-    //return target_joints;
+  
+    return target_joints;
   }
 };
