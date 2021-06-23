@@ -12,8 +12,14 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   trajectory_msgs
-  
+  # Vision
+  message_generation
+  sensor_msgs
+  cv_bridge
+  image_transport
 )
+
+find_package(PCL 1.5 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -109,6 +115,7 @@ catkin_package(
 #  LIBRARIES rvc
 #  CATKIN_DEPENDS roscpp rospy std_msgs trajectory_msgs
 #  DEPENDS system_lib
+  CATKIN_DEPENDS message_runtime # Vision
 )
 
 ###########
@@ -221,3 +228,12 @@ file(GLOB SOURCES
 add_executable(talker ${SOURCES})
 target_link_libraries(talker ${catkin_LIBRARIES})
 add_dependencies(talker rvc_cpp)
+
+# Vision
+add_executable(vision src/vision.cpp)
+target_link_libraries(vision ${catkin_LIBRARIES})
+add_dependencies(vision rvc_cpp)
+
+find_package(OpenCV)
+include_directories(${OpenCV_INCLUDE_DIRS})
+target_link_libraries(vision ${OpenCV_LIBRARIES})
