@@ -12,6 +12,7 @@
 #include <kdl/chainiksolverpos_lma.hpp>
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
+#include <kdl/jntarray.hpp>
 
 class RobotArm
 {
@@ -30,6 +31,7 @@ public:
     KDL::SegmentMap::const_iterator root_seg;
     root_seg = my_tree.getRootSegment();
     my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
+    
   }
 
   KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
@@ -96,6 +98,6 @@ public:
     std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
       <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
     
-    return target_joints;
+    //return target_joints;
   }
 };

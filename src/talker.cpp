@@ -384,11 +384,7 @@ ates simple sending of messages over the ROS system.
  */
 int main(int argc, char **argv)
 {
-  // ros::init(argc, argv, "talker");
-  // ros::NodeHandle n;
 
-  // RobotArm ra(n);
-  // ra.IKinematics(0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
 
   // Parameters initialization
   float ti = 0;
@@ -505,6 +501,9 @@ int main(int argc, char **argv)
   // Ros node initialization
   ros::init(argc, argv, "talker");
   ros::NodeHandle n;
+
+  RobotArm ra(n);
+  ra.IKinematics(0.0,0.0,0.0,0.0,0.0,0.0);
 
   /**
    * NodeHandle is the main access point to communications with the ROS system.

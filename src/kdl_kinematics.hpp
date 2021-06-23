@@ -10,6 +10,7 @@
 #include <kdl/treeiksolvervel_wdls.hpp>
 #include <kdl/chainiksolvervel_wdls.hpp>
 #include <kdl/chainiksolverpos_lma.hpp>
+#include <kdl/jntarray.hpp>
 
 class RobotArm
 {
@@ -20,5 +21,5 @@ private:
 public:
   RobotArm(ros::NodeHandle nh_) {}
 
-  KDL::JntArray IKinematics() {}
+  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw) {}
 };
