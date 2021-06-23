@@ -115,7 +115,7 @@ catkin_package(
 #  LIBRARIES rvc
 #  CATKIN_DEPENDS roscpp rospy std_msgs trajectory_msgs
 #  DEPENDS system_lib
-  CATKIN_DEPENDS message_runtime # Vision
+#  CATKIN_DEPENDS message_runtime # Vision
 )
 
 ###########
