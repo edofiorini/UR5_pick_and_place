@@ -14,6 +14,8 @@
 #include <tf/transform_broadcaster.h>
 #include <kdl/jntarray.hpp>
 
+using namespace KDL;
+
 class RobotArm
 {
 private:
@@ -34,6 +36,14 @@ public:
 
   KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
   {
+    // verificare i valori  e sostituirli con quelli corretti passati dalla funzione
+    chain.addSegment(Segment(Joint(Joint::RotZ),Frame(Vector(0.0,0.0,1.020))));
+    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.480))));
+    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.645))));
+    chain.addSegment(Segment(Joint(Joint::RotZ)));
+    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.120))));
+    chain.addSegment(Segment(Joint(Joint::RotZ)));
+
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
     unsigned int nj = chain.getNrOfJoints();

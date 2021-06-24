@@ -22,6 +22,25 @@
 
 using namespace Eigen;
 
+
+/**
+ * @brief is a point to point trajectory funcion, it needs position velocity acceleration profiles as output matices,
+ * qi, qf are initial and final positions in joint space also for dqi, dqf and ddqi, ddqf, the timing law is between ti as initial time and tf, final time.
+ * 
+ * 
+ * @param T time vector
+ * @param qi initial position in joint space
+ * @param qf final position in joint space
+ * @param dqi initial velocity in joint space
+ * @param dqf final velocity in joint space
+ * @param ddqi initial acceleration in joint space
+ * @param ddqf final position in joint space
+ * @result  q positions
+ * @result  qdd positions 
+ * @result  qdd positions 
+ * 
+ * 
+ */
 void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, float ti, float tf, float qi, float dqi, float ddqi, float qf, float dqf, float ddqf, float Ts)
 {
 
@@ -72,7 +91,12 @@ void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, fl
     qdd(0, i) = 20 * a5.coeff(0, 0) * pow(T.coeff(0, i), 3) + 12 * a4.coeff(0, 0) * pow(T.coeff(0, i), 2) + 6 * a3.coeff(0, 0) * pow(T.coeff(0, i), 1) + 2 * a2.coeff(0, 0);
   }
 }
-
+/**
+ * @brief simple sign function
+ * 
+ * @param x 
+ * @return double 
+ */
 double sign_func(double x)
 {
   if (x > 0)
@@ -89,6 +113,14 @@ double sign_func(double x)
   }
 }
 
+/**
+ * @brief angle between two vectors
+ * 
+ * @param v1 
+ * @param v2 
+ * @param normal 
+ * @return double 
+ */
 double vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
 {
 
@@ -604,61 +636,67 @@ int main(int argc, char **argv)
   //imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
-   
-//for(int i = 0; i < length; i++){
-  KDL::JntArray target_joints = ra.IKinematics(dataPosition.coeff(0,0), dataPosition.coeff(1,0), dataPosition.coeff(2,0), dataPosition.coeff(3,0), dataPosition.coeff(4,0), dataPosition.coeff(5,0));
-    std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-      <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
-//}
+  KDL::JntArray target_joints;
+  
+  for(int i = 0; i < length; i++){
+    //ROS_INFO("data_position : %f %f %f %f %f %f ", dataPosition.coeff(0,i),dataPosition.coeff(1,i),dataPosition.coeff(2,i),dataPosition.coeff(3,i),dataPosition.coeff(4,i),dataPosition.coeff(5,i));
+    dataPosition(3,i) = 0.0f;
+    dataPosition(4,i) = 0.0f;
+    dataPosition(5,i) = 0.0f;
+    ROS_INFO("data_position : %f %f %f %f %f %f ", dataPosition.coeff(0,i),dataPosition.coeff(1,i),dataPosition.coeff(2,i),dataPosition.coeff(3,i),dataPosition.coeff(4,i),dataPosition.coeff(5,i));
+    // dataPosition(0,i),dataPosition(1,i),dataPosition(2,i),dataPosition(3,i),dataPosition(4,i),dataPosition(5,i)
+    target_joints =  ra.IKinematics(1,1,1,1,1,1);
+      
+  }
 
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
   ros::Rate loop_rate(1);
  // int back = 0;
-  while (ros::ok())
-  {
-    //back = 1 - back;
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names = {
-        "robot_arm_elbow_joint",
-        "robot_arm_shoulder_lift_joint",
-        "robot_arm_shoulder_pan_joint",
-        "robot_arm_wrist_1_joint",
-        "robot_arm_wrist_2_joint",
-        "robot_arm_wrist_3_joint",
-        // "robot_wsg50_finger_left_joint",
-        // "robot_wsg50_finger_right_joint",
-    };
+  // while (ros::ok())
+  // {
+  //   //back = 1 - back;
+  //   trajectory_msgs::JointTrajectory msg;
+  //   msg.joint_names = {
+  //       "robot_arm_elbow_joint",
+  //       "robot_arm_shoulder_lift_joint",
+  //       "robot_arm_shoulder_pan_joint",
+  //       "robot_arm_wrist_1_joint",
+  //       "robot_arm_wrist_2_joint",
+  //       "robot_arm_wrist_3_joint",
+  //       // "robot_wsg50_finger_left_joint",
+  //       // "robot_wsg50_finger_right_joint",
+  //   };
 
-    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
-    for (int i = 0; i < 10; i++)
-    {
+  //   std::vector<trajectory_msgs::JointTrajectoryPoint> points;
+  //   for (int i = 0; i < 10; i++)
+  //   {
       
-      std::cout << "Sto per mandare" << std::endl;
-      trajectory_msgs::JointTrajectoryPoint point;
-      //int val = i;
-      float p = 0.02;
-      point.positions = { 
-        target_joints.data[0], 
-        target_joints.data[1], 
-        target_joints.data[2], 
-        target_joints.data[3], 
-        target_joints.data[4],
-        target_joints.data[5],
-      };
-      point.velocities = {p, p, p,p, p,p};    //{0,0,0,0,0,0,0,0};
-      point.accelerations = {p, p, p,p, p,p}; //{0,0,0,0,0,0,0,0};
-      point.time_from_start = ros::Duration(i);
-      points.push_back(point);
-    }
+  //     std::cout << "Sto per mandare" << std::endl;
+  //     trajectory_msgs::JointTrajectoryPoint point;
+  //     //int val = i;
+  //     float p = 0.02;
+  //     point.positions = { 
+  //       target_joints.data[0], 
+  //       target_joints.data[1], 
+  //       target_joints.data[2], 
+  //       target_joints.data[3], 
+  //       target_joints.data[4],
+  //       target_joints.data[5],
+  //     };
+  //     point.velocities = {p, p, p,p, p,p};    //{0,0,0,0,0,0,0,0};
+  //     point.accelerations = {p, p, p,p, p,p}; //{0,0,0,0,0,0,0,0};
+  //     point.time_from_start = ros::Duration(i);
+  //     points.push_back(point);
+  //   }
 
-    msg.points = points;
+  //   msg.points = points;
 
-    chatter_pub.publish(msg);
-    ros::spinOnce();
+  //   chatter_pub.publish(msg);
+  //   ros::spinOnce();
 
-    loop_rate.sleep();
-  }
+  //   loop_rate.sleep();
+  // }
 
   return 0;
 }
