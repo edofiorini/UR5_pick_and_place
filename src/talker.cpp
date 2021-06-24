@@ -410,17 +410,17 @@ void cameraCallback(const sensor_msgs::CameraInfoConstPtr& msg) {
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     if(++imgCount < 5)
-        return;
+      return;
     imgCount = 0;
 
     cv::Mat image, imageCopy;
     try {
-        // Retrive image from camera topic
-        imagePtr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+      // Retrive image from camera topic
+      imagePtr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
     }
     catch (cv_bridge::Exception& e) {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
     }
     image = imagePtr->image;
     cv::flip(image, image, 1); 
@@ -431,22 +431,29 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     std::vector<std::vector<cv::Point2f> > corners, rejCandidates;
     cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();
     cv::Ptr<cv::aruco::Dictionary> dictionary =
-        cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+      cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::aruco::detectMarkers(image, dictionary, corners, ids, parameters, rejCandidates);
 
     // if at least one marker detected
     if (ids.size() > 0) {
-        ROS_INFO("Cubes detected!");
-        cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
+      ROS_INFO("Cubes detected!");
+      cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
-        std::vector<cv::Vec3d> rvecs, tvecs;
-        cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
-        // draw axis for each marker
-        for(int i=0; i<ids.size(); i++)
-            cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
+      std::vector<cv::Vec3d> rvecs, tvecs;
+      cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
+      //ROS_INFO("rotation %f %f %f",rvecs[0].val[0],rvecs[0].val[1],rvecs[0].val[2]);
+      std::cout << "rvecs 1 : " << rvecs[0] << std::endl;
+      std::cout << "rvecs 2 : " << rvecs[1] << std::endl;
+      std::cout << "rvecs 3 : " << rvecs[2] << std::endl;
+      std::cout << "tvecs 1 : " << tvecs[0] << std::endl;
+      std::cout << "tvecs 2 : " << tvecs[1] << std::endl;
+      std::cout << "tvecs 3 : " << tvecs[2] << std::endl;
+      // draw axis for each marker
+      for(int i=0; i<ids.size(); i++)
+        cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
 
     } else // Show rejected candidates
-        cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
+      cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
     // Show results
     cv::imshow("out", imageCopy);
 
@@ -586,48 +593,64 @@ int main(int argc, char **argv)
   cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
   imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
-  ros::spin();
+  // ros::spin();
 
-  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
+  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1000);
+  trajectory_msgs::JointTrajectory msg;
+  // msg.frame_id = "/robot_base_footprint";
+  msg.joint_names = {
+    "robot_arm_elbow_joint",
+    "robot_arm_shoulder_lift_joint",
+    "robot_arm_shoulder_pan_joint",
+    "robot_arm_wrist_1_joint",
+    "robot_arm_wrist_2_joint",
+    "robot_arm_wrist_3_joint",
+    // "robot_wsg50_finger_left_joint",
+    // "robot_wsg50_finger_right_joint",
+  };
 
-  ros::Rate loop_rate(1);
-  int back = 0;
+  std::vector<trajectory_msgs::JointTrajectoryPoint> points;
+  
+  trajectory_msgs::JointTrajectoryPoint point;
+  
+  // provare a sostituire a P i punti del cubo nel joint space
+
+  
+
+  int _count = 0;
+
+  ros::Rate loop_rate(5);
   while (ros::ok())
   {
-    back = 1 - back;
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names = {
-        "robot_arm_elbow_joint",
-        "robot_arm_shoulder_lift_joint",
-        "robot_arm_shoulder_pan_joint",
-        "robot_arm_wrist_1_joint",
-        "robot_arm_wrist_2_joint",
-        "robot_arm_wrist_3_joint",
-        // "robot_wsg50_finger_left_joint",
-        // "robot_wsg50_finger_right_joint",
-    };
-
-    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
-    for (int i = 0; i < 10; i++)
-    {
-      trajectory_msgs::JointTrajectoryPoint point;
-      int val = i;
-      /*if(back){
-          val = 10-i;
-        }*/
-      //float p = val*0.5;
-      float p = 0.02;
-      point.positions = {p, p};     //{p,5,5,p,p,p,p,p};
-      point.velocities = {p, p};    //{0,0,0,0,0,0,0,0};
-      point.accelerations = {p, p}; //{0,0,0,0,0,0,0,0};
-      point.time_from_start = ros::Duration(i);
-      points.push_back(point);
-    }
-
-    msg.points = points;
-
-    chatter_pub.publish(msg);
     ros::spinOnce();
+    // if(_count%3 == 0){
+    //   point.positions = {0, 0, 0, 0, 0, 0};     //{p,5,5,p,p,p,p,p};
+    //   point.velocities = {0, 0, 0, 0, 0, 0};    //{0,0,0,0,0,0,0,0};
+    //   point.accelerations = {0, 0, 0, 0, 0, 0}; //{0,0,0,0,0,0,0,0};
+    //   point.time_from_start = ros::Duration(2);
+    //   points.push_back(point);
+
+    // }
+
+    // if(_count%3 == 1){
+    //   point.positions = {-1.047197, -0.196349, 0.0, 0.0, 0.0, 0.0};
+    //   point.velocities = {0, 0, 0, 0, 0, 0};    //{0,0,0,0,0,0,0,0};
+    //   point.accelerations = {0, 0, 0, 0, 0, 0}; //{0,0,0,0,0,0,0,0};
+    //   point.time_from_start = ros::Duration(2);
+    //   points.push_back(point);
+
+    // }
+    // if(_count%3 == 2){
+    //   point.positions = {1.968408, -0.926611, -2.632783, -1.045207, 2.092650, 1.565689};
+    //   point.velocities = {0, 0, 0, 0, 0, 0};    //{0,0,0,0,0,0,0,0};
+    //   point.accelerations = {0, 0, 0, 0, 0, 0}; //{0,0,0,0,0,0,0,0};
+    //   point.time_from_start = ros::Duration(2);
+    //   points.push_back(point);
+
+    // }
+    // _count++;
+    // msg.points = points;
+    // chatter_pub.publish(msg);
 
     loop_rate.sleep();
   }
