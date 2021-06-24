@@ -13,37 +13,19 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <kdl/jntarray.hpp>
+#include "kdl_kinematics.hpp"
 
 using namespace KDL;
 
-class RobotArm
-{
-private:
-  KDL::Tree my_tree;
-  KDL::Chain chain;
-public:
-  RobotArm(ros::NodeHandle nh_)
-  {
-    std::string robot_desc_string;
-    nh_.param("robot/robot_description", robot_desc_string, std::string());
-    if (!kdl_parser::treeFromString(robot_desc_string, my_tree)){
-        ROS_ERROR("Failed to construct kdl tree");
-    }
-    KDL::SegmentMap::const_iterator root_seg;
-    root_seg = my_tree.getRootSegment();
-    my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);  
-  }
 
-  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
+
+  
+
+KDL::JntArray RobotArm::RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
   {
     // verificare i valori  e sostituirli con quelli corretti passati dalla funzione
-    chain.addSegment(Segment(Joint(Joint::RotZ),Frame(Vector(0.0,0.0,1.020))));
-    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.480))));
-    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.645))));
-    chain.addSegment(Segment(Joint(Joint::RotZ)));
-    chain.addSegment(Segment(Joint(Joint::RotX),Frame(Vector(0.0,0.0,0.120))));
-    chain.addSegment(Segment(Joint(Joint::RotZ)));
-
+    
+    std::cout << robot_desc_string << std::endl;
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
     unsigned int nj = chain.getNrOfJoints();
@@ -105,4 +87,3 @@ public:
   
     return target_joints;
   }
-};

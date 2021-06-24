@@ -636,67 +636,71 @@ int main(int argc, char **argv)
   //imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
+
   KDL::JntArray target_joints;
   
-  for(int i = 0; i < length; i++){
-    //ROS_INFO("data_position : %f %f %f %f %f %f ", dataPosition.coeff(0,i),dataPosition.coeff(1,i),dataPosition.coeff(2,i),dataPosition.coeff(3,i),dataPosition.coeff(4,i),dataPosition.coeff(5,i));
-    dataPosition(3,i) = 0.0f;
-    dataPosition(4,i) = 0.0f;
-    dataPosition(5,i) = 0.0f;
-    ROS_INFO("data_position : %f %f %f %f %f %f ", dataPosition.coeff(0,i),dataPosition.coeff(1,i),dataPosition.coeff(2,i),dataPosition.coeff(3,i),dataPosition.coeff(4,i),dataPosition.coeff(5,i));
-    // dataPosition(0,i),dataPosition(1,i),dataPosition(2,i),dataPosition(3,i),dataPosition(4,i),dataPosition(5,i)
-    target_joints =  ra.IKinematics(1,1,1,1,1,1);
-      
-  }
+  // for(int i = 0; i < length; i++){
+  //   //ROS_INFO("data_position : %f %f %f %f %f %f ", dataPosition.coeff(0,i),dataPosition.coeff(1,i),dataPosition.coeff(2,i),dataPosition.coeff(3,i),dataPosition.coeff(4,i),dataPosition.coeff(5,i));
+  //   // dataPosition(3,i) = 0.0f;
+  //   // dataPosition(4,i) = 0.0f;
+  //   // dataPosition(5,i) = 0.0f;
+    
+  // }
 
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
   ros::Rate loop_rate(1);
- // int back = 0;
-  // while (ros::ok())
-  // {
-  //   //back = 1 - back;
-  //   trajectory_msgs::JointTrajectory msg;
-  //   msg.joint_names = {
-  //       "robot_arm_elbow_joint",
-  //       "robot_arm_shoulder_lift_joint",
-  //       "robot_arm_shoulder_pan_joint",
-  //       "robot_arm_wrist_1_joint",
-  //       "robot_arm_wrist_2_joint",
-  //       "robot_arm_wrist_3_joint",
-  //       // "robot_wsg50_finger_left_joint",
-  //       // "robot_wsg50_finger_right_joint",
-  //   };
+  int back = 0;
+  uint cnt =0,i=0;
+  while (ros::ok())
+  {
+    //back = 1 - back;
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names = {
+        "robot_arm_elbow_joint",
+        "robot_arm_shoulder_lift_joint",
+        "robot_arm_shoulder_pan_joint",
+        "robot_arm_wrist_1_joint",
+        "robot_arm_wrist_2_joint",
+        "robot_arm_wrist_3_joint",
+        // "robot_wsg50_finger_left_joint",
+        // "robot_wsg50_finger_right_joint",
+    };
 
-  //   std::vector<trajectory_msgs::JointTrajectoryPoint> points;
-  //   for (int i = 0; i < 10; i++)
-  //   {
+    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
+    i = cnt%length;
+    cnt++;
+    target_joints = ra.IKinematics(dataPosition(0,i),dataPosition(1,i),dataPosition(2,i),dataPosition(3,i),dataPosition(4,i),dataPosition(5,i));
       
-  //     std::cout << "Sto per mandare" << std::endl;
-  //     trajectory_msgs::JointTrajectoryPoint point;
-  //     //int val = i;
-  //     float p = 0.02;
-  //     point.positions = { 
-  //       target_joints.data[0], 
-  //       target_joints.data[1], 
-  //       target_joints.data[2], 
-  //       target_joints.data[3], 
-  //       target_joints.data[4],
-  //       target_joints.data[5],
-  //     };
-  //     point.velocities = {p, p, p,p, p,p};    //{0,0,0,0,0,0,0,0};
-  //     point.accelerations = {p, p, p,p, p,p}; //{0,0,0,0,0,0,0,0};
-  //     point.time_from_start = ros::Duration(i);
-  //     points.push_back(point);
-  //   }
 
-  //   msg.points = points;
 
-  //   chatter_pub.publish(msg);
-  //   ros::spinOnce();
+    
+      
+    std::cout << "Sto per mandare" << std::endl;
+    trajectory_msgs::JointTrajectoryPoint point;
+    //int val = i;
+    float p = 0.02;
+    point.positions = { 
+      target_joints.data[0], 
+      target_joints.data[1], 
+      target_joints.data[2], 
+      target_joints.data[3], 
+      target_joints.data[4],
+      target_joints.data[5],
+    };
+    point.velocities = {p,p,p,p,p,p};    //{0,0,0,0,0,0,0,0};
+    point.accelerations = {p,p,p,p,p,p}; //{0,0,0,0,0,0,0,0};
+    point.time_from_start = ros::Duration(i);
+    points.push_back(point);
+    
 
-  //   loop_rate.sleep();
-  // }
+    msg.points = points;
+
+    chatter_pub.publish(msg);
+    ros::spinOnce();
+
+    loop_rate.sleep();
+  }
 
   return 0;
 }
