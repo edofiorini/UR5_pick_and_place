@@ -50,7 +50,7 @@ public:
       joint_states publish in alphabetical order, but for the kinematics you need the actual order
     */
     for(unsigned int i=0;i<nj;i++){
-        jointpositions(i)= 0; //@todo check this one 
+        jointpositions(i)= 0.5; //@todo check this one 
         jointminpos(i) = -M_PI;
         jointmaxpos(i) = M_PI;
         jointmaxvel(i) = 0.5;

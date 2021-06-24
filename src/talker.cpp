@@ -491,14 +491,23 @@ int main(int argc, char **argv)
   c << 1,
       1,
       1;
-  pi << 3,
-      1,
-      1;
 
-  pf << 1,
-      3,
-      1;
+  pi << 0.00269014526034,
+      -7.1385420055,
+       0.0;
 
+  // pf << 0.00369014526034,
+  //     -3.8385420055,
+  //      0.1;
+
+
+  // pi << 3,
+  //       3,
+  //       1;
+
+  pf << 2.1,
+        2.4,
+        1.2;
   linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
   //// std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
 
@@ -530,7 +539,7 @@ int main(int argc, char **argv)
   MatrixXd p(3, length1);
   MatrixXd dp(3, length1);
   MatrixXd ddp(3, length1);
-  //linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
+  linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
   // // std::cout << "Linear_motion: " << p << "\n" << std::endl;
   //// std::cout << s.cols() << " " << p.cols() << std::endl;
 
@@ -548,7 +557,7 @@ int main(int argc, char **argv)
   MatrixXd PHI_f(3, 1);
 
   //frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
-  frenet_frame(p1, dp1, ddp1, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
+  frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
   // // std::cout  << "PHI_i: " << PHI_i<< std::endl;
 
   // EE_orientation with the TIMING LAW
@@ -578,23 +587,37 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   RobotArm ra(n);
-  KDL::JntArray target_joints = ra.IKinematics(0.0,0.0,0.0,0.0,0.0,0.0);
-  // // std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-  //     <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
+  // x: 0.00269014526034
+  //       y: -7.1385420055e-09
+  //       z: 0.0
+  // for (int j = 0; j < length; j++){
+   
+    
+  // }
+  
+  //KDL::JntArray target_joints = ra.IKinematics(0.5,-7.1385420055e-05,1,0.0,0.0,0.0);
+  // std::cout << "Fatto" << std::endl;
+
     
   // Vision system
-  cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
-  imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
+  //cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
+  //imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
-  ros::spin();
+  //ros::spin();
+   
+//for(int i = 0; i < length; i++){
+  KDL::JntArray target_joints = ra.IKinematics(dataPosition.coeff(0,0), dataPosition.coeff(1,0), dataPosition.coeff(2,0), dataPosition.coeff(3,0), dataPosition.coeff(4,0), dataPosition.coeff(5,0));
+    std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
+      <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
+//}
 
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
   ros::Rate loop_rate(1);
-  int back = 0;
+ // int back = 0;
   while (ros::ok())
   {
-    back = 1 - back;
+    //back = 1 - back;
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names = {
         "robot_arm_elbow_joint",
@@ -610,16 +633,21 @@ int main(int argc, char **argv)
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
     for (int i = 0; i < 10; i++)
     {
+      
+      std::cout << "Sto per mandare" << std::endl;
       trajectory_msgs::JointTrajectoryPoint point;
-      int val = i;
-      /*if(back){
-          val = 10-i;
-        }*/
-      //float p = val*0.5;
+      //int val = i;
       float p = 0.02;
-      point.positions = {p, p};     //{p,5,5,p,p,p,p,p};
-      point.velocities = {p, p};    //{0,0,0,0,0,0,0,0};
-      point.accelerations = {p, p}; //{0,0,0,0,0,0,0,0};
+      point.positions = { 
+        target_joints.data[0], 
+        target_joints.data[1], 
+        target_joints.data[2], 
+        target_joints.data[3], 
+        target_joints.data[4],
+        target_joints.data[5],
+      };
+      point.velocities = {p, p, p,p, p,p};    //{0,0,0,0,0,0,0,0};
+      point.accelerations = {p, p, p,p, p,p}; //{0,0,0,0,0,0,0,0};
       point.time_from_start = ros::Duration(i);
       points.push_back(point);
     }
