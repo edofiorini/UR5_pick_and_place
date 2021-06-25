@@ -559,6 +559,9 @@ int main(int argc, char **argv)
   MatrixXd PHI_i(3, 1);
   MatrixXd PHI_f(3, 1);
 
+  // @todo actually not used since orientation is fixed due to nan values
+  // quaterions should be converted in euler angles to keep the same orientation
+  // and the use of frean
   PHI_i <<  1,
             1,
             1;
@@ -566,6 +569,9 @@ int main(int argc, char **argv)
            1,
            1;
   
+  // @todo frenet_frame doesn't work properly there is a problem with types
+  // if you try different pi and pf you will find out a type problem
+  // for now we can ignore it since we don't have an orientation
   std::cout << "frenet Motion" << std::endl;
   //frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
   // frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
@@ -651,8 +657,8 @@ int main(int argc, char **argv)
       target_joints.data[4],
       target_joints.data[5],
     };
-    point.velocities = {0,0,0,0,0,0};
-    point.accelerations = {0,0,0,0,0,0};
+    point.velocities = {0,0,0,0,0,0};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
+    point.accelerations = {0,0,0,0,0,0};  // @todo find a way to calculate proper acceleration
     point.time_from_start = ros::Duration(i);
     points.push_back(point);
 
