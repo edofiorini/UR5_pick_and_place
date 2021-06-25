@@ -463,7 +463,7 @@ int main(int argc, char **argv)
 
   // Parameters initialization
   float ti = 0;
-  float tf = 4;
+  float tf = 10;
   //float qi = 1;
   //float dqi = 1;
   //float ddqi = 1;
@@ -492,22 +492,22 @@ int main(int argc, char **argv)
       1,
       1;
 
-  pi << 0.00269014526034,
-      -7.1385420055,
-       0.0;
+//       name: [robot_arm_elbow_joint, robot_arm_shoulder_lift_joint, robot_arm_shoulder_pan_joint,
+//   robot_arm_wrist_1_joint, robot_arm_wrist_2_joint, robot_arm_wrist_3_joint, robot_back_left_wheel_joint,
+//   robot_back_right_wheel_joint, robot_front_laser_base_joint, robot_front_left_wheel_joint,
+//   robot_front_right_wheel_joint, robot_rear_laser_base_joint, robot_wsg50_finger_left_joint,
+//   robot_wsg50_finger_right_joint]
+// position: [0.0008272502333133147, -0.004462865286466666, 0.0003710867883217617, 0.003431276473670586, 0.0006236343289502955, -0.0018006549368365654, 0.008769420324110655, 0.005491248609164501, -4.527158603551129e-07, 0.00338525628889208, 0.0022050160345301606, 5.132515923378378e-08, -0.0027247144878572715, 0.0026875661941777825]
 
-  // pf << 0.00369014526034,
-  //     -3.8385420055,
-  //      0.1;
+  pi << 7.52029879666e-05,
+        0.0824919074266,
+        -2.7352945447e-05;
 
+  pf << 7.62029879666e-05,
+        0.0011919074266,
+        -2.7352945447e-05;
 
-  // pi << 3,
-  //       3,
-  //       1;
-
-  pf << 2.1,
-        2.4,
-        1.2;
+  std::cout << "Here" << std::endl;
   linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
   //// std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
 
@@ -516,6 +516,7 @@ int main(int argc, char **argv)
   MatrixXd dp_tilde1(3, length);
   MatrixXd ddp_tilde1(3, length);
 
+  std::cout << "Here 1" << std::endl;
   circular_tilde(T, p_tilde1, dp_tilde1, ddp_tilde1, pi, pf, c, ti, tf, Ts, length2);
   //// std::cout << "Circular_tilde: " << dp_tilde1.row(0) << "\n" << std::endl;
 
@@ -539,6 +540,7 @@ int main(int argc, char **argv)
   MatrixXd p(3, length1);
   MatrixXd dp(3, length1);
   MatrixXd ddp(3, length1);
+    std::cout << "Linear Motion" << std::endl;
   linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
   // // std::cout << "Linear_motion: " << p << "\n" << std::endl;
   //// std::cout << s.cols() << " " << p.cols() << std::endl;
@@ -546,6 +548,7 @@ int main(int argc, char **argv)
   MatrixXd p1(3, length2);
   MatrixXd dp1(3, length2);
   MatrixXd ddp1(3, length2);
+  std::cout << "Circular Motion" << std::endl;
   circular_motion(T, p1, dp1, ddp1, pi, pf, Ts, c, length2);
   // // std::cout << "Circular_motion: " << p1 << "\n"<< std::endl;
   // Frenet Frame to find the orientation of the end-effector
@@ -556,14 +559,22 @@ int main(int argc, char **argv)
   MatrixXd PHI_i(3, 1);
   MatrixXd PHI_f(3, 1);
 
+  PHI_i <<  1,
+            1,
+            1;
+  PHI_f << 1,
+           1,
+           1;
+  
+  std::cout << "frenet Motion" << std::endl;
   //frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
-  frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
-  // // std::cout  << "PHI_i: " << PHI_i<< std::endl;
+  // frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
 
   // EE_orientation with the TIMING LAW
   MatrixXd o_tilde(3, length);
   MatrixXd do_tilde(3, length);
   MatrixXd ddo_tilde(3, length);
+  std::cout << "ee" << std::endl;
   EE_orientation(T, PHI_i, PHI_f, o_tilde, do_tilde, ddo_tilde, pi, pf, ti, tf, Ts);
   // // std::cout << "o_tilde" << o_tilde << std::endl;
   // Put the 3d coordinate togheter
@@ -587,37 +598,23 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   RobotArm ra(n);
-  // x: 0.00269014526034
-  //       y: -7.1385420055e-09
-  //       z: 0.0
-  // for (int j = 0; j < length; j++){
-   
-    
-  // }
-  
-  //KDL::JntArray target_joints = ra.IKinematics(0.5,-7.1385420055e-05,1,0.0,0.0,0.0);
-  // std::cout << "Fatto" << std::endl;
-
     
   // Vision system
   //cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
   //imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
-   
-//for(int i = 0; i < length; i++){
-  KDL::JntArray target_joints = ra.IKinematics(dataPosition.coeff(0,0), dataPosition.coeff(1,0), dataPosition.coeff(2,0), dataPosition.coeff(3,0), dataPosition.coeff(4,0), dataPosition.coeff(5,0));
-    std::cout<<"result joints ik_p "<<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-      <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
-//}
-
+  
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
   ros::Rate loop_rate(1);
- // int back = 0;
+  KDL::JntArray target_joints;
+  int i = 0;
   while (ros::ok())
   {
-    //back = 1 - back;
+    if (i == length) {
+      break;
+    }
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names = {
         "robot_arm_elbow_joint",
@@ -630,27 +627,34 @@ int main(int argc, char **argv)
         // "robot_wsg50_finger_right_joint",
     };
 
+    std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
+    target_joints = ra.IKinematics(
+      dataPosition.coeff(0,i), 
+      dataPosition.coeff(1,i), 
+      dataPosition.coeff(2,i), 
+      0,//dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
+      0,//dataPosition.coeff(4,i), 
+      0//dataPosition.coeff(5,i)
+    );
+    std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
+        <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
+
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
-    for (int i = 0; i < 10; i++)
-    {
-      
-      std::cout << "Sto per mandare" << std::endl;
-      trajectory_msgs::JointTrajectoryPoint point;
-      //int val = i;
-      float p = 0.02;
-      point.positions = { 
-        target_joints.data[0], 
-        target_joints.data[1], 
-        target_joints.data[2], 
-        target_joints.data[3], 
-        target_joints.data[4],
-        target_joints.data[5],
-      };
-      point.velocities = {p, p, p,p, p,p};    //{0,0,0,0,0,0,0,0};
-      point.accelerations = {p, p, p,p, p,p}; //{0,0,0,0,0,0,0,0};
-      point.time_from_start = ros::Duration(i);
-      points.push_back(point);
-    }
+    std::cout << "Sending data to Ros" << std::endl;
+    trajectory_msgs::JointTrajectoryPoint point;
+    // float p = 0.0000001;
+    point.positions = { 
+      target_joints.data[0], 
+      target_joints.data[1], 
+      target_joints.data[2], 
+      target_joints.data[3], 
+      target_joints.data[4],
+      target_joints.data[5],
+    };
+    point.velocities = {0,0,0,0,0,0};
+    point.accelerations = {0,0,0,0,0,0};
+    point.time_from_start = ros::Duration(i);
+    points.push_back(point);
 
     msg.points = points;
 
@@ -658,6 +662,7 @@ int main(int argc, char **argv)
     ros::spinOnce();
 
     loop_rate.sleep();
+    i++;
   }
 
   return 0;

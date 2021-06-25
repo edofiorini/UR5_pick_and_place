@@ -13,14 +13,9 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <kdl/jntarray.hpp>
+#include "kdl_kinematics.hpp"
 
-class RobotArm
-{
-private:
-  KDL::Tree my_tree;
-  KDL::Chain chain;
-public:
-  RobotArm(ros::NodeHandle nh_)
+RobotArm::RobotArm(ros::NodeHandle nh_)
   {
     std::string robot_desc_string;
     nh_.param("robot/robot_description", robot_desc_string, std::string());
@@ -29,10 +24,10 @@ public:
     }
     KDL::SegmentMap::const_iterator root_seg;
     root_seg = my_tree.getRootSegment();
-    my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);  
+    my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
   }
 
-  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
+KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
   {
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
@@ -50,28 +45,20 @@ public:
       joint_states publish in alphabetical order, but for the kinematics you need the actual order
     */
     for(unsigned int i=0;i<nj;i++){
-        jointpositions(i)= 0.5; //@todo check this one 
+        jointpositions(i)= 0; //@todo check this one 
         jointminpos(i) = -M_PI;
         jointmaxpos(i) = M_PI;
         jointmaxvel(i) = 0.5;
     }
-
 
     KDL::ChainIkSolverVel_wdls ik_v = KDL::ChainIkSolverVel_wdls(chain);
     KDL::ChainIkSolverPos_LMA	 ik_p = KDL::ChainIkSolverPos_LMA	(chain);
 
     KDL::Frame cartpos;
     bool kinematics_status;
-    kinematics_status = fk.JntToCart(jointpositions,cartpos);
-    if(kinematics_status>=0){
-        printf("\n\n%s \n","Success, thanks KDL!");
-    }else{
-        printf("\n\n%s \n","Error: could not calculate forward kinematics :(");
-    }
+    kinematics_status = fk.JntToCart(jointpositions,cartpos); // @todo check what to do with this status
 
-
-    //you have done with the initialization part, now you can use IK
-    
+    // You have done with the initialization part, now you can use IK  
     //Use directly a quaternion or create one from RPY values
     tf::Quaternion q1;
     q1.setEuler(roll, pitch, yaw);
@@ -89,10 +76,8 @@ public:
 
     KDL::JntArray target_joints = KDL::JntArray(nj);
 
-    double result = ik_p.CartToJnt(jointpositions, target, target_joints);
-
-    std::cout<<"result ik_p "<<result<<std::endl;
+    double result = ik_p.CartToJnt(jointpositions, target, target_joints); //@todo check the meaning of result -3
+    // std::cout<<"result ik_p "<<result<<std::endl;
   
     return target_joints;
   }
-};

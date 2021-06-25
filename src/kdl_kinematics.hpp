@@ -14,8 +14,11 @@
 
 class RobotArm
 {
+private:
+  KDL::Tree my_tree;
+  KDL::Chain chain;
 public:
-  RobotArm(ros::NodeHandle nh_) {}
+  RobotArm(ros::NodeHandle nh_);
 
-  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw) {}
+  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw);
 };
