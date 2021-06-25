@@ -561,7 +561,7 @@ int main(int argc, char **argv)
 
   // @todo actually not used since orientation is fixed due to nan values
   // quaterions should be converted in euler angles to keep the same orientation
-  // and the use of frean
+  // and the use of frenet frame
   PHI_i <<  1,
             1,
             1;
