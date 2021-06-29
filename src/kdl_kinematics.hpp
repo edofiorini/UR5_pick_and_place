@@ -20,5 +20,5 @@ private:
 public:
   RobotArm(ros::NodeHandle nh_);
 
-  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw);
+  KDL::JntArray IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6]);
 };

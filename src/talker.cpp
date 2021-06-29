@@ -1,5 +1,6 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
+#include "sensor_msgs/JointState.h"
 #include "trajectory_msgs/JointTrajectory.h"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
 #include "ros/duration.h"
@@ -360,6 +361,7 @@ void frenet_frame(MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &o_EE_t, Ma
 void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_tilde, MatrixXd &do_tilde, MatrixXd &ddo_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
 {
 
+  // @todo understand how to deal with nan orientations, (consider them as infinity or use the PHI_i)
   float qi = 0;
   float dqi = 0;
   float ddqi = 0;
@@ -391,12 +393,14 @@ cv_bridge::CvImagePtr imagePtr;
 cv::Mat K(3, 3, CV_64F);
 cv::Mat D(1, 5, CV_64F);
 
+double joints[6];
+
 // Image counter
 int imgCount = 0;
 
 // Topic
 ros::Publisher dataPub;
-ros::Subscriber imageSub, cameraSub;
+ros::Subscriber imageSub, cameraSub, joint_state_sub;
 
 
 void cameraCallback(const sensor_msgs::CameraInfoConstPtr& msg) {
@@ -404,9 +408,46 @@ void cameraCallback(const sensor_msgs::CameraInfoConstPtr& msg) {
     for(int i=0; i<3; i++)
         for(int j=0; j<3; j++)
             K.at<double>(i, j) = msg->K[i*3+j];
-    // This callback is needed to be called just one time
-    cameraSub.shutdown();
 }
+
+
+void jointsCallback(const sensor_msgs::JointState& msg) {
+//   name[]
+  //   name[0]: robot_arm_elbow_joint
+  //   name[1]: robot_arm_shoulder_lift_joint
+  //   name[2]: robot_arm_shoulder_pan_joint
+  //   name[3]: robot_arm_wrist_1_joint
+  //   name[4]: robot_arm_wrist_2_joint
+  //   name[5]: robot_arm_wrist_3_joint
+  //   name[6]: robot_back_left_wheel_joint
+  //   name[7]: robot_back_right_wheel_joint
+  //   name[8]: robot_front_laser_base_joint
+  //   name[9]: robot_front_left_wheel_joint
+  //   name[10]: robot_front_right_wheel_joint
+  //   name[11]: robot_rear_laser_base_joint
+  //   name[12]: robot_wsg50_finger_left_joint
+  //   name[13]: robot_wsg50_finger_right_joint
+// position[]
+//   position[0]: 0.351993
+//   position[1]: -0.187495
+//   position[2]: -1.88308
+//   position[3]: 3.1416
+//   position[4]: -1.67409
+//   position[5]: -0.771451
+//   position[6]: 0.00665016
+//   position[7]: 8.72015e-05
+//   position[8]: 1.06114e-06
+//   position[9]: 0.00268441
+//   position[10]: 0.00834393
+//   position[11]: -5.51283e-08
+//   position[12]: -0.00270603
+//   position[13]: 0.00270666
+    // std::cout << msg.position[0] << std::endl;
+    for(int i=0; i<6; i++) {
+      joints[i] = msg.position[i];
+    }
+}
+
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     if(++imgCount < 5)
@@ -463,7 +504,7 @@ int main(int argc, char **argv)
 
   // Parameters initialization
   float ti = 0;
-  float tf = 10;
+  float tf = 5;
   //float qi = 1;
   //float dqi = 1;
   //float ddqi = 1;
@@ -492,32 +533,38 @@ int main(int argc, char **argv)
       1,
       1;
 
-//       name: [robot_arm_elbow_joint, robot_arm_shoulder_lift_joint, robot_arm_shoulder_pan_joint,
-//   robot_arm_wrist_1_joint, robot_arm_wrist_2_joint, robot_arm_wrist_3_joint, robot_back_left_wheel_joint,
-//   robot_back_right_wheel_joint, robot_front_laser_base_joint, robot_front_left_wheel_joint,
-//   robot_front_right_wheel_joint, robot_rear_laser_base_joint, robot_wsg50_finger_left_joint,
-//   robot_wsg50_finger_right_joint]
-// position: [0.0008272502333133147, -0.004462865286466666, 0.0003710867883217617, 0.003431276473670586, 0.0006236343289502955, -0.0018006549368365654, 0.008769420324110655, 0.005491248609164501, -4.527158603551129e-07, 0.00338525628889208, 0.0022050160345301606, 5.132515923378378e-08, -0.0027247144878572715, 0.0026875661941777825]
+  // Aruco Blue
+  // point:
+  // - Translation: [0.643, 0.327, 0.506]
+  // - Rotation: in Quaternion [-0.494, 0.507, -0.504, 0.495]
+  //             in RPY (radian) [-1.572, 0.004, -1.592]
+  //             in RPY (degree) [-90.070, 0.246, -91.225]
+  // PHI_f << 1.6634562, 
+  //         1.5487069,
+  //         3.0529328 ;
+  
+  pi << -0.629,
+       -0.226,
+        0.501;
+  
+  pf <<  0.643, 
+         0.327, 
+         0.506;
+  // pf << 0.081, 
+  //      -0.166, 
+  //       1.125;
 
-  pi << 7.52029879666e-05,
-        0.0824919074266,
-        -2.7352945447e-05;
-
-  pf << 7.62029879666e-05,
-        0.0011919074266,
-        -2.7352945447e-05;
-
-  std::cout << "Here" << std::endl;
   linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
+ // std::cout << p_tilde << std::endl;
   //// std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
 
-  int length2 = circular_length(pi, pf, Ts, c);
-  MatrixXd p_tilde1(3, length);
-  MatrixXd dp_tilde1(3, length);
-  MatrixXd ddp_tilde1(3, length);
+  // int length2 = circular_length(pi, pf, Ts, c);
+  // MatrixXd p_tilde1(3, length);
+  // MatrixXd dp_tilde1(3, length);
+  // MatrixXd ddp_tilde1(3, length);
 
-  std::cout << "Here 1" << std::endl;
-  circular_tilde(T, p_tilde1, dp_tilde1, ddp_tilde1, pi, pf, c, ti, tf, Ts, length2);
+  // std::cout << "Here 1" << std::endl;
+  // circular_tilde(T, p_tilde1, dp_tilde1, ddp_tilde1, pi, pf, c, ti, tf, Ts, length2);
   //// std::cout << "Circular_tilde: " << dp_tilde1.row(0) << "\n" << std::endl;
 
   // linear motion - Position in operational space without TIMING LAW
@@ -537,19 +584,19 @@ int main(int argc, char **argv)
     count++;
   }
 
-  MatrixXd p(3, length1);
-  MatrixXd dp(3, length1);
-  MatrixXd ddp(3, length1);
-    std::cout << "Linear Motion" << std::endl;
-  linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
+  // MatrixXd p(3, length1);
+  // MatrixXd dp(3, length1);
+  // MatrixXd ddp(3, length1);
+  // std::cout << "Linear Motion" << std::endl;
+  // linear_motion(T, p, dp, ddp, s, pi, pf, Ts, length1);
   // // std::cout << "Linear_motion: " << p << "\n" << std::endl;
   //// std::cout << s.cols() << " " << p.cols() << std::endl;
 
-  MatrixXd p1(3, length2);
-  MatrixXd dp1(3, length2);
-  MatrixXd ddp1(3, length2);
-  std::cout << "Circular Motion" << std::endl;
-  circular_motion(T, p1, dp1, ddp1, pi, pf, Ts, c, length2);
+  // MatrixXd p1(3, length2);
+  // MatrixXd dp1(3, length2);
+  // MatrixXd ddp1(3, length2);
+  // std::cout << "Circular Motion" << std::endl;
+  // circular_motion(T, p1, dp1, ddp1, pi, pf, Ts, c, length2);
   // // std::cout << "Circular_motion: " << p1 << "\n"<< std::endl;
   // Frenet Frame to find the orientation of the end-effector
 
@@ -562,17 +609,17 @@ int main(int argc, char **argv)
   // @todo actually not used since orientation is fixed due to nan values
   // quaterions should be converted in euler angles to keep the same orientation
   // and the use of frenet frame
-  PHI_i <<  1,
-            1,
-            1;
-  PHI_f << 1,
-           1,
-           1;
+  PHI_i <<  1.550996,
+            0.0014283,
+            -0.0014003;
+  PHI_f << 1.6634562, 
+          1.5487069,
+          3.0529328 ;
   
   // @todo frenet_frame doesn't work properly there is a problem with types
   // if you try different pi and pf you will find out a type problem
   // for now we can ignore it since we don't have an orientation
-  std::cout << "frenet Motion" << std::endl;
+
   //frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
   // frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
 
@@ -580,9 +627,8 @@ int main(int argc, char **argv)
   MatrixXd o_tilde(3, length);
   MatrixXd do_tilde(3, length);
   MatrixXd ddo_tilde(3, length);
-  std::cout << "ee" << std::endl;
   EE_orientation(T, PHI_i, PHI_f, o_tilde, do_tilde, ddo_tilde, pi, pf, ti, tf, Ts);
-  // // std::cout << "o_tilde" << o_tilde << std::endl;
+  // std::cout << "o_tilde" << o_tilde << std::endl;
   // Put the 3d coordinate togheter
   MatrixXd dataPosition(6, length);
   MatrixXd dataVelocities(6, length);
@@ -596,7 +642,6 @@ int main(int argc, char **argv)
 
   dataAcceleration.block(0, 0, 3, length) = ddp_tilde.block(0, 0, 3, length);
   dataAcceleration.block(3, 0, 3, length) = ddo_tilde.block(0, 0, 3, length);
-
   //// std::cout << dataAcceleration << std::endl;
 
   // Ros node initialization
@@ -611,9 +656,10 @@ int main(int argc, char **argv)
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
   
+  joint_state_sub = n.subscribe("/robot/joint_states", 6, jointsCallback);
   ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
 
-  ros::Rate loop_rate(1);
+  ros::Rate loop_rate(1/Ts);
   KDL::JntArray target_joints;
   int i = 0;
   while (ros::ok())
@@ -623,24 +669,30 @@ int main(int argc, char **argv)
     }
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names = {
-        "robot_arm_elbow_joint",
-        "robot_arm_shoulder_lift_joint",
         "robot_arm_shoulder_pan_joint",
+        "robot_arm_shoulder_lift_joint",
+        "robot_arm_elbow_joint",
         "robot_arm_wrist_1_joint",
         "robot_arm_wrist_2_joint",
         "robot_arm_wrist_3_joint",
-        // "robot_wsg50_finger_left_joint",
-        // "robot_wsg50_finger_right_joint",
     };
+
+//     name: [robot_arm_elbow_joint, robot_arm_shoulder_lift_joint, robot_arm_shoulder_pan_joint,
+//   robot_arm_wrist_1_joint, robot_arm_wrist_2_joint, robot_arm_wrist_3_joint, robot_back_left_wheel_joint,
+//   robot_back_right_wheel_joint, robot_front_laser_base_joint, robot_front_left_wheel_joint,
+//   robot_front_right_wheel_joint, robot_rear_laser_base_joint, robot_wsg50_finger_left_joint,
+//   robot_wsg50_finger_right_joint]
+// position: [0.0009882093120010538, -0.004636228122041786, 0.0003662015319854106, 0.004736848878017064, -0.0004745839067181734, -0.0026192122741299784, 0.006021022652799246, 0.003768699969980638, 4.422671304737946e-07, 0.0023266177316152437, 0.0015134840160504481, 4.7676911307803493e-08, -0.002723838282277339, 0.0026888526197915907]
 
     std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
     target_joints = ra.IKinematics(
       dataPosition.coeff(0,i), 
       dataPosition.coeff(1,i), 
       dataPosition.coeff(2,i), 
-      0,//dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
-      0,//dataPosition.coeff(4,i), 
-      0//dataPosition.coeff(5,i)
+      dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
+      dataPosition.coeff(4,i), 
+      dataPosition.coeff(5,i),
+      joints
     );
     std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
         <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
@@ -648,7 +700,7 @@ int main(int argc, char **argv)
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
     std::cout << "Sending data to Ros" << std::endl;
     trajectory_msgs::JointTrajectoryPoint point;
-    // float p = 0.0000001;
+    float p = 0.0001;
     point.positions = { 
       target_joints.data[0], 
       target_joints.data[1], 
@@ -657,8 +709,11 @@ int main(int argc, char **argv)
       target_joints.data[4],
       target_joints.data[5],
     };
-    point.velocities = {0,0,0,0,0,0};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
-    point.accelerations = {0,0,0,0,0,0};  // @todo find a way to calculate proper acceleration
+    if (i == 0 || i == length-1) {
+      p = 0.0f;
+    }
+    // point.velocities = {p,p,p,p,p,p};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
+    // point.accelerations = {p,p,p,p,p,p};  // @todo find a way to calculate proper acceleration
     point.time_from_start = ros::Duration(i);
     points.push_back(point);
 
