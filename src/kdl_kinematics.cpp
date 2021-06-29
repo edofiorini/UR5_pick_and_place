@@ -1,4 +1,4 @@
-#include <kdl/tree.hpp>
+  #include <kdl/tree.hpp>
 #include <kdl/chain.hpp>
 #include <kdl_parser/kdl_parser.hpp>
 #include <kdl/treefksolver.hpp>
@@ -27,29 +27,31 @@ RobotArm::RobotArm(ros::NodeHandle nh_)
     my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
   }
 
-KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw)
+KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6])
   {
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
     unsigned int nj = chain.getNrOfJoints();
     KDL::JntArray jointpositions = KDL::JntArray(nj);
-    KDL::JntArray jointminpos = KDL::JntArray(nj);
-    KDL::JntArray jointmaxpos = KDL::JntArray(nj);
-    KDL::JntArray jointmaxvel = KDL::JntArray(nj);
     std::vector< std::string > endpoints;
     endpoints.push_back("robot_arm_tool0");
-
  
     /*
       for the current joints positions you can read it from joint_states, remember that you have to swap the first and the third value
       joint_states publish in alphabetical order, but for the kinematics you need the actual order
     */
     for(unsigned int i=0;i<nj;i++){
-        jointpositions(i)= 0; //@todo check this one, it should be an intial value for the recursive algorithm but we don't know
-        jointminpos(i) = -M_PI;
-        jointmaxpos(i) = M_PI;
-        jointmaxvel(i) = 0.5;
+        if (i == 0) {
+          jointpositions(i)= joints[2];
+        } else if (i == 1) {
+          jointpositions(i)= joints[1];
+        } else if (i == 2){
+          jointpositions(i)= joints[0];
+        } else{
+          jointpositions(i)= joints[i];
+        }
     }
+   
 
     KDL::ChainIkSolverVel_wdls ik_v = KDL::ChainIkSolverVel_wdls(chain);
     KDL::ChainIkSolverPos_LMA	 ik_p = KDL::ChainIkSolverPos_LMA	(chain);
@@ -59,7 +61,7 @@ KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, d
     kinematics_status = fk.JntToCart(jointpositions,cartpos); // @todo check what to do with this status
 
     // You have done with the initialization part, now you can use IK  
-    //Use directly a quaternion or create one from RPY values
+    // Use directly a quaternion or create one from RPY values
     tf::Quaternion q1;
     q1.setEuler(roll, pitch, yaw);
 
@@ -77,7 +79,7 @@ KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, d
     KDL::JntArray target_joints = KDL::JntArray(nj);
 
     double result = ik_p.CartToJnt(jointpositions, target, target_joints); //@todo check the meaning of result -3
-    // std::cout<<"result ik_p "<<result<<std::endl;
+    std::cout<<"result ik_p "<<result<<std::endl;
   
     return target_joints;
   }
