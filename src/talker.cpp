@@ -657,7 +657,7 @@ int main(int argc, char **argv)
   //ros::spin();
   
   joint_state_sub = n.subscribe("/robot/joint_states", 6, jointsCallback);
-  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1);
+  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 100000);
 
   ros::Rate loop_rate(1/Ts);
   KDL::JntArray target_joints;
@@ -683,7 +683,7 @@ int main(int argc, char **argv)
 //   robot_front_right_wheel_joint, robot_rear_laser_base_joint, robot_wsg50_finger_left_joint,
 //   robot_wsg50_finger_right_joint]
 // position: [0.0009882093120010538, -0.004636228122041786, 0.0003662015319854106, 0.004736848878017064, -0.0004745839067181734, -0.0026192122741299784, 0.006021022652799246, 0.003768699969980638, 4.422671304737946e-07, 0.0023266177316152437, 0.0015134840160504481, 4.7676911307803493e-08, -0.002723838282277339, 0.0026888526197915907]
-
+    double vel_[6];
     std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
     target_joints = ra.IKinematics(
       dataPosition.coeff(0,i), 
@@ -692,8 +692,10 @@ int main(int argc, char **argv)
       dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
       dataPosition.coeff(4,i), 
       dataPosition.coeff(5,i),
-      joints
+      joints,
+      vel_
     );
+    std::cout << "velocities : " << vel_[0] << " " << vel_[1] << " "<< vel_[2] << " "<< vel_[3] << " "<< vel_[4] << " "<< vel_[5] << " "<<std::endl;   
     std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
         <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
 
@@ -712,7 +714,7 @@ int main(int argc, char **argv)
     if (i == 0 || i == length-1) {
       p = 0.0f;
     }
-    // point.velocities = {p,p,p,p,p,p};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
+    point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
     // point.accelerations = {p,p,p,p,p,p};  // @todo find a way to calculate proper acceleration
     point.time_from_start = ros::Duration(i);
     points.push_back(point);
