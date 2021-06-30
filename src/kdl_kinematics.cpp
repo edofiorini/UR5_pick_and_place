@@ -15,6 +15,10 @@
 #include <kdl/jntarray.hpp>
 #include "kdl_kinematics.hpp"
 #include <tf/transform_listener.h>
+#include <Eigen/Eigen>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 
 RobotArm::RobotArm(ros::NodeHandle nh_)
   {
@@ -28,7 +32,7 @@ RobotArm::RobotArm(ros::NodeHandle nh_)
     my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
   }
 
-KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6],double vel_ [6])
+KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6], Eigen::MatrixXd &operational_velocities, int pos, Eigen::MatrixXd &operational_acc,int length, double vel_[6], double acc_[6])
   {
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
@@ -54,7 +58,8 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
     }
    
     KDL::ChainIkSolverVel_wdls ik_v = KDL::ChainIkSolverVel_wdls(chain);
-    KDL::ChainIkSolverPos_LMA	 ik_p = KDL::ChainIkSolverPos_LMA	(chain);
+    KDL::ChainIkSolverPos_LMA	ik_p = KDL::ChainIkSolverPos_LMA(chain);
+    // KDL::ChainIkSolverAcc	ik_a = KDL::ChainIkSolverAcc(chain);
 
     KDL::Frame cartpos;
     bool kinematics_status;
@@ -79,27 +84,54 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
 
     KDL::JntArray target_joints = KDL::JntArray(nj);
     KDL::JntArray target_joints_vel = KDL::JntArray(nj);
+    KDL::JntArray target_joints_acc = KDL::JntArray(nj);
 
-    double result = ik_p.CartToJnt(jointpositions, target, target_joints); //@todo check the meaning of result -3
-    std::cout<<"result ik_p "<<result<<std::endl;
+    double result_p = ik_p.CartToJnt(jointpositions, target, target_joints); //@todo check the meaning of result -3 KDL::SolverI::E_NOERROR
 
-    tf::TransformListener listener;
-    tf::StampedTransform transform;
+    std::cout<<"result ik_p "<<result_p<<std::endl;
 
-     std::string *error_msg=NULL; // @todo check the transform for the velocity
+    // tf::TransformListener listener;
+    // tf::StampedTransform transform;
+
+    // std::string *error_msg=NULL; // @todo check the transform for the velocity
       
-    listener.waitForTransform("robot_wsg50_base_link","robot_base_link", ros::Time(0),  ros::Duration(0.5), ros::Duration(0.01), error_msg=NULL); 
-    listener.lookupTransform("robot_wsg50_base_link","robot_base_link",ros::Time(0), transform);
+    // listener.waitForTransform("robot_wsg50_center","robot_base_footprint", ros::Time(0),  ros::Duration(0.5), ros::Duration(0.01), error_msg=NULL); 
+    // listener.lookupTransform("robot_wsg50_center","robot_base_footprint",ros::Time(0), transform);
     //listener.waitForTransform("/robot_base_link", "/robot_arm_tool0",ros::Time::now(), transform);
-    std::cout << " transform : " << transform.getOrigin().x() << " "<< transform.getOrigin().y()<< " " << transform.getOrigin().z()<< std::endl;
-    KDL::Vector v_base(0,0,0); // base del robot
-    KDL::Vector v_gripper(transform.getOrigin().x(),transform.getOrigin().y(),transform.getOrigin().z()); // end effector
-    KDL::Twist tw = KDL::Twist(v_base,v_gripper);
+    // std::cout << " transform : " << transform.getOrigin().x() << " "<< transform.getOrigin().y()<< " " << transform.getOrigin().z()<< std::endl;
+    // KDL::Vector v_base(0,0,0); // base del robot
+    // KDL::Vector v_gripper(transform.getOrigin().x(),transform.getOrigin().y(),transform.getOrigin().z()); // end effector
 
-    ik_v.CartToJnt(jointpositions,tw,target_joints_vel);
+    KDL::Twist tw = KDL::Twist::Zero();
+    tw.vel.x(operational_velocities.coeff(0,pos));
+    tw.vel.y(operational_velocities.coeff(1,pos));
+    tw.vel.z(operational_velocities.coeff(2,pos));
+    tw.rot.x(operational_velocities.coeff(3,pos));
+    tw.rot.y(operational_velocities.coeff(4,pos));
+    tw.rot.z(operational_velocities.coeff(5,pos));
+
+    double result_v = ik_v.CartToJnt(target_joints,tw,target_joints_vel);
+
+    std::cout<<"result ik_v " << result_v << std::endl;
 
     for(int idx =0;idx<6;idx++)
       vel_[idx] = target_joints_vel.data[idx];
+
+
+    // KDL::Twist tw = KDL::Twist::Zero();
+  //   tw.vel.x(operational_acc.coeff(0,i));
+  //   tw.vel.y(operational_acc.coeff(1,i));
+  //   tw.vel.z(operational_acc.coeff(2,i));
+  //   tw.rot.x(operational_acc.coeff(3,i));
+  //   tw.rot.y(operational_acc.coeff(4,i));
+  //   tw.rot.z(operational_acc.coeff(5,i));
+
+    // double result_a = ik_a.CartToJnt(target_joints,target_joints_vel,tw,target_joints_acc);
+
+    // std::cout<<"result ik_a " << result_a << std::endl;
+
+    // for(int idx =0;idx<6;idx++)
+    //   acc_[idx] = target_joints_acc.data[idx];
   
     return target_joints;
   }
