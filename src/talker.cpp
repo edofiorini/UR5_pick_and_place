@@ -381,7 +381,7 @@ void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_t
   MatrixXd l = support1 / support1.norm();
   for (int i = 0; i < length; i++)
   {
-    o_tilde.col(i) = pi + l * s.col(i);
+    o_tilde.col(i) = PHI_i + l * s.col(i);
     do_tilde.col(i) = l * sd.col(i);
     ddo_tilde.col(i) = l * sdd.col(i);
   }
@@ -543,13 +543,14 @@ int main(int argc, char **argv)
   //         1.5487069,
   //         3.0529328 ;
   
-  pi << -0.305, 
-      -0.209,
-      1.360;
+  pi << 0.034, 
+      -0.162,
+      1.203;
   
-  pf <<  -0.552, // 15 minuti e mi collego di nuovo -- Anto Abbiamo finito
-        -0.101, 
-        0.978;
+  
+  pf <<  0.054, // 15 minuti e mi collego di nuovo -- Anto Abbiamo finito
+        -0.1080, 
+        1.132;
          
   // pf << 0.081, 
   //      -0.166, 
