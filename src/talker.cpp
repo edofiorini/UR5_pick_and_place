@@ -543,13 +543,14 @@ int main(int argc, char **argv)
   //         1.5487069,
   //         3.0529328 ;
   
-  pi << -0.629,
-       -0.226,
-        0.501;
+  pi << -0.305, 
+      -0.209,
+      1.360;
   
-  pf <<  0.643, 
-         0.327, 
-         0.506;
+  pf <<  -0.552, // 15 minuti e mi collego di nuovo -- Anto Abbiamo finito
+        -0.101, 
+        0.978;
+         
   // pf << 0.081, 
   //      -0.166, 
   //       1.125;
@@ -609,12 +610,21 @@ int main(int argc, char **argv)
   // @todo actually not used since orientation is fixed due to nan values
   // quaterions should be converted in euler angles to keep the same orientation
   // and the use of frenet frame
-  PHI_i <<  1.550996,
-            0.0014283,
-            -0.0014003;
-  PHI_f << 1.6634562, 
-          1.5487069,
-          3.0529328 ;
+  PHI_i <<  1.5518156,
+          0.0012191,
+          1.3373496 ;
+
+  PHI_f << 0.0411531,
+          0.762862,
+          2.6063793;
+  
+
+  // PHI_i <<  1.550996,
+  //           0.0014283,
+  //           -0.0014003;
+  // PHI_f << 1.6634562, 
+  //         1.5487069,
+  //         3.0529328 ;
   
   // @todo frenet_frame doesn't work properly there is a problem with types
   // if you try different pi and pf you will find out a type problem
@@ -677,13 +687,8 @@ int main(int argc, char **argv)
         "robot_arm_wrist_3_joint",
     };
 
-//     name: [robot_arm_elbow_joint, robot_arm_shoulder_lift_joint, robot_arm_shoulder_pan_joint,
-//   robot_arm_wrist_1_joint, robot_arm_wrist_2_joint, robot_arm_wrist_3_joint, robot_back_left_wheel_joint,
-//   robot_back_right_wheel_joint, robot_front_laser_base_joint, robot_front_left_wheel_joint,
-//   robot_front_right_wheel_joint, robot_rear_laser_base_joint, robot_wsg50_finger_left_joint,
-//   robot_wsg50_finger_right_joint]
-// position: [0.0009882093120010538, -0.004636228122041786, 0.0003662015319854106, 0.004736848878017064, -0.0004745839067181734, -0.0026192122741299784, 0.006021022652799246, 0.003768699969980638, 4.422671304737946e-07, 0.0023266177316152437, 0.0015134840160504481, 4.7676911307803493e-08, -0.002723838282277339, 0.0026888526197915907]
     double vel_[6];
+    double acc_[6];
     std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
     target_joints = ra.IKinematics(
       dataPosition.coeff(0,i), 
@@ -693,7 +698,12 @@ int main(int argc, char **argv)
       dataPosition.coeff(4,i), 
       dataPosition.coeff(5,i),
       joints,
-      vel_
+      dataVelocities,
+      i,
+      dataAcceleration,
+      length,
+      vel_,
+      acc_
     );
     std::cout << "velocities : " << vel_[0] << " " << vel_[1] << " "<< vel_[2] << " "<< vel_[3] << " "<< vel_[4] << " "<< vel_[5] << " "<<std::endl;   
     std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
@@ -714,8 +724,8 @@ int main(int argc, char **argv)
     if (i == 0 || i == length-1) {
       p = 0.0f;
     }
-    point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};     // @todo find a way to calculate proper velocity (Jacobian? or ask in email)
-    // point.accelerations = {p,p,p,p,p,p};  // @todo find a way to calculate proper acceleration
+    point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};
+    point.accelerations = {acc_[0],acc_[1],acc_[2],acc_[3],acc_[4],acc_[5]};
     point.time_from_start = ros::Duration(i);
     points.push_back(point);
 
