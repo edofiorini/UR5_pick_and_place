@@ -32,7 +32,7 @@ RobotArm::RobotArm(ros::NodeHandle nh_)
     my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
   }
 
-KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6], Eigen::MatrixXd &operational_velocities, int pos, Eigen::MatrixXd &operational_acc,int length, double vel_[6], double acc_[6])
+KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6], Eigen::MatrixXd &operational_velocities, int pos, Eigen::MatrixXd &operational_acc,int length, double vel_[6], double acc_[6], bool *flag)
   {
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
@@ -87,8 +87,10 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
     KDL::JntArray target_joints_acc = KDL::JntArray(nj);
 
     double result_p = ik_p.CartToJnt(jointpositions, target, target_joints); //@todo check the meaning of result -3 KDL::SolverI::E_NOERROR
-
-    std::cout<<"result ik_p "<<result_p<<std::endl;
+    *flag = true;
+    
+  
+    std::cout << "\nresult ik_p "<<result_p<<std::endl;
 
     // tf::TransformListener listener;
     // tf::StampedTransform transform;
@@ -111,6 +113,10 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
     tw.rot.z(operational_velocities.coeff(5,pos));
 
     double result_v = ik_v.CartToJnt(target_joints,tw,target_joints_vel);
+
+    if (result_p < 0 || result_v < 0) {
+      *flag = false;
+    }
 
     std::cout<<"result ik_v " << result_v << std::endl;
 

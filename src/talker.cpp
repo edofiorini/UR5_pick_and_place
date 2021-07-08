@@ -16,6 +16,7 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <image_transport/image_transport.h>
+#include "robot_arm2.hpp"
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
@@ -92,7 +93,6 @@ double sign_func(double x)
 
 double vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
 {
-
   double toRad = 2 * 3.14 / 360;
   Vector3d xprod = v1.cross(v2);
 
@@ -108,7 +108,6 @@ double vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
 
 int circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c)
 {
-
   MatrixXd n = (pi - c);
   MatrixXd rho(1, 1);
   rho(0, 0) = n.norm();
@@ -195,7 +194,6 @@ void circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matr
 
 void linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &s, MatrixXd &pi, MatrixXd &pf, float Ts, int length1)
 {
-
   MatrixXd support = pf - pi;
   double end = support.norm();
 
@@ -206,7 +204,6 @@ void linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matrix
 
   for (int i = 0; i < length1; i++)
   {
-
     p.col(i) = pi + s.coeff(0, i) * (support / end);
     dp.col(i) = support / end;
     ddp.col(i) = zero;
@@ -500,11 +497,9 @@ ates simple sending of messages over the ROS system.
  */
 int main(int argc, char **argv)
 {
-
-
   // Parameters initialization
   float ti = 0;
-  float tf = 5;
+  float tf = 2;
   //float qi = 1;
   //float dqi = 1;
   //float ddqi = 1;
@@ -542,15 +537,19 @@ int main(int argc, char **argv)
   // PHI_f << 1.6634562, 
   //         1.5487069,
   //         3.0529328 ;
-  
-  pi << 0.034, 
-      -0.162,
-      1.203;
-  
-  
-  pf <<  0.054, // 15 minuti e mi collego di nuovo -- Anto Abbiamo finito
-        -0.1080, 
-        1.132;
+  //0.223, -0.616, 1.124
+  // -0.629, -0.226, 0.499
+/*  pi << -0.629, 
+      -0.226,
+      0.499;
+  */
+  pi << 0.491,
+        -0.008,
+        1.134;
+
+  pf <<  0.543, 
+        -0.464, 
+        0.574;
          
   // pf << 0.081, 
   //      -0.166, 
@@ -611,13 +610,15 @@ int main(int argc, char **argv)
   // @todo actually not used since orientation is fixed due to nan values
   // quaterions should be converted in euler angles to keep the same orientation
   // and the use of frenet frame
-  PHI_i <<  1.5518156,
-          0.0012191,
-          1.3373496 ;
+  PHI_i <<  3.073289,
+            0.6506525,
+            -1.4879759;
 
-  PHI_f << 0.0411531,
-          0.762862,
-          2.6063793;
+  PHI_f << 0.4884818,
+           1.4777122,
+           -2.0672861;
+
+
   
 
   // PHI_i <<  1.550996,
@@ -660,6 +661,20 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   RobotArm ra(n);
+
+  ros::AsyncSpinner spinner(2);
+
+  InitialPose arm;
+
+  spinner.start();
+  // Start the trajectory
+  arm.startTrajectory(arm.armExtensionTrajectory());
+  // Wait for trajectory completion
+  while(!arm.getState().isDone() && ros::ok())
+  {
+    usleep(50000);
+  }
+
     
   // Vision system
   //cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
@@ -673,6 +688,7 @@ int main(int argc, char **argv)
   ros::Rate loop_rate(1/Ts);
   KDL::JntArray target_joints;
   int i = 0;
+  double previous_vel_[6];
   while (ros::ok())
   {
     if (i == length) {
@@ -690,6 +706,9 @@ int main(int argc, char **argv)
 
     double vel_[6];
     double acc_[6];
+    //bool * flag = new bool(false);
+    bool* flag = new bool(false);
+    
     std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
     target_joints = ra.IKinematics(
       dataPosition.coeff(0,i), 
@@ -704,12 +723,14 @@ int main(int argc, char **argv)
       dataAcceleration,
       length,
       vel_,
-      acc_
+      acc_,
+      flag
     );
-    std::cout << "velocities : " << vel_[0] << " " << vel_[1] << " "<< vel_[2] << " "<< vel_[3] << " "<< vel_[4] << " "<< vel_[5] << " "<<std::endl;   
-    std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-        <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
 
+    std::cout << " flag : " << *flag << std::endl;
+   if(*flag){
+   //if (i == 0 || i == round(length/2) || i == length -1) {
+    
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
     std::cout << "Sending data to Ros" << std::endl;
     trajectory_msgs::JointTrajectoryPoint point;
@@ -726,17 +747,32 @@ int main(int argc, char **argv)
       p = 0.0f;
     }
     point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};
-    point.accelerations = {acc_[0],acc_[1],acc_[2],acc_[3],acc_[4],acc_[5]};
+    point.accelerations = {
+      (vel_[0]-previous_vel_[0])/Ts,
+      (vel_[1]-previous_vel_[1])/Ts,
+      (vel_[2]-previous_vel_[2])/Ts,
+      (vel_[3]-previous_vel_[3])/Ts,
+      (vel_[4]-previous_vel_[4])/Ts,
+      (vel_[5]-previous_vel_[5])/Ts
+    };
     point.time_from_start = ros::Duration(i);
     points.push_back(point);
 
     msg.points = points;
 
-    chatter_pub.publish(msg);
+    
+       std::cout << "velocities : " << vel_[0] << " " << vel_[1] << " "<< vel_[2] << " "<< vel_[3] << " "<< vel_[4] << " "<< vel_[5] << " "<<std::endl;   
+       std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
+        <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
+
+        chatter_pub.publish(msg);
+    }
     ros::spinOnce();
 
     loop_rate.sleep();
     i++;
+    for(int i = 0; i < 6; i++)
+      previous_vel_[i] = vel_[i];
   }
 
   return 0;
