@@ -223,8 +223,13 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 add_definitions(${EIGEN_DEFINITIONS})
 
 file(GLOB SOURCES
-    src/*.hpp
-    src/*.cpp
+    #src/*.hpp
+    src/kdl_kinematics.hpp
+    src/robot_arm2.hpp
+    #src/*.cpp
+    src/kdl_kinematics.cpp
+    src/robot_arm2.cpp
+    src/talker.cpp
 )
 
 add_executable(talker ${SOURCES})
