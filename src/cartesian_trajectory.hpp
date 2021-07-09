@@ -2,6 +2,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <Eigen/Eigenvalues>
+
 using namespace Eigen;
 
 class CartesianTrajectory
@@ -20,11 +21,14 @@ private:
   void frenet_frame(MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &o_EE_t, MatrixXd &o_EE_n, MatrixXd &o_EE_b, MatrixXd &PHI_i, MatrixXd &PHI_f, int length);
 
 public:
-  //properties
-  MatrixXd dataPosition(6, length);
-  MatrixXd dataVelocities(6, length);
-  MatrixXd dataAcceleration(6, length);
+  // Properties
+  // Declaration of data matrices
+  MatrixXd dataPosition; // (6, length);
+  MatrixXd dataVelocities; // (6, length);
+  MatrixXd dataAcceleration; // (6, length);
   int length;
 
   CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f,float ti, float tf, float Ts);
+
+  float get_length();
 };

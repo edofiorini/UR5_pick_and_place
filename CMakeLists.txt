@@ -226,9 +226,13 @@ file(GLOB SOURCES
     #src/*.hpp
     src/kdl_kinematics.hpp
     src/robot_arm2.hpp
+    src/cartesian_trajectory.hpp
+    src/aruco_info.hpp
     #src/*.cpp
     src/kdl_kinematics.cpp
     src/robot_arm2.cpp
+    src/cartesian_trajectory.cpp
+    src/aruco_info.cpp
     src/talker.cpp
 )
 

@@ -1,27 +1,30 @@
-#include "ros/ros.h"
-#include "std_msgs/String.h"
-#include "sensor_msgs/JointState.h"
-#include "trajectory_msgs/JointTrajectory.h"
-#include "trajectory_msgs/JointTrajectoryPoint.h"
-#include "ros/duration.h"
-#include "kdl_kinematics.hpp"
-#include "cartesian_trajectory.hpp"
-#include <Eigen/Eigen>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-#include <Eigen/Eigenvalues>
 #include <iostream>
 #include <sstream>
 #include <cmath>
 #include <complex>
+#include <Eigen/Eigen>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
+
 #include <ros/ros.h>
+#include "ros/ros.h"
 #include <ros/package.h>
+#include "ros/duration.h"
+#include "std_msgs/String.h"
+#include "sensor_msgs/JointState.h"
+#include "trajectory_msgs/JointTrajectory.h"
+#include "trajectory_msgs/JointTrajectoryPoint.h"
 #include <image_transport/image_transport.h>
-#include "robot_arm2.hpp"
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/aruco.hpp>
+
+#include "robot_arm2.hpp"
+#include "kdl_kinematics.hpp"
+#include "cartesian_trajectory.hpp"
+#include "aruco_info.hpp"
 
 using namespace Eigen;
 
@@ -31,6 +34,7 @@ bool joints_done = false;
 cv_bridge::CvImagePtr imagePtr;
 cv::Mat K(3, 3, CV_64F);
 cv::Mat D(1, 5, CV_64F);
+std::vector<ArucoInfo> *arucoVec;
 
 double joints[6];
 
@@ -117,19 +121,26 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::aruco::detectMarkers(image, dictionary, corners, ids, parameters, rejCandidates);
 
-    // if at least one marker detected
-    if (ids.size() > 0) {
-        ROS_INFO("Cubes detected!");
-        cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
+    if (ids.size() <= 0) {
+      // No acuro detected
+      return;
+    }
 
-        std::vector<cv::Vec3d> rvecs, tvecs;
-        cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
-        // draw axis for each marker
-        for(int i=0; i<ids.size(); i++)
-            cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
+    // At least one marker has been detected
+    ROS_INFO("Cubes detected!");
+    // cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
-    } //else // Show rejected candidates
-        //cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
+    // Aruco information container
+    arucoVec = new std::vector<ArucoInfo>;
+    std::vector<cv::Vec3d> rvecs, tvecs;
+    cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
+    // draw axis for each marker
+    for(int i=0; i<ids.size(); i++) {
+      // Save aruco id, rotation and traslation
+      arucoVec->push_back(ArucoInfo(ids[i], rvecs[i], tvecs[i]));
+      // cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
+    }
+
     // Show results
     //cv::imshow("out", imageCopy);
 
@@ -137,11 +148,19 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
 }
 
 /**
- * This tutorial demonstrMatrix3f m;
-ates simple sending of messages over the ROS system.
+ * MAIN
  */
 int main(int argc, char **argv)
 {
+  std::cout << "Starting main..." << std::endl;
+
+  // Trajectory initial, final and sampling time
+  std::cout << "Setting time..." << std::endl;
+  float ti = 0.0f;
+  float tf = 4.0f;
+  float Ts = 0.1f;
+
+  std::cout << "Setting points matrices..." << std::endl;
   MatrixXd pi(3, 1);
   MatrixXd pf(3, 1);
   MatrixXd c(3, 1);
@@ -171,11 +190,16 @@ int main(int argc, char **argv)
            1.4777122,
            -2.0672861;
 
-  CartesianTrajectory initialTrajectory = CartesianTrajectory::CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
+  std::cout << "Initializing trajectory..." << std::endl;
+  CartesianTrajectory *initialTrajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
+  std::cout << "Trajectory initialized!" << std::endl;
+
+  float length = initialTrajectory->get_length();
 
   //// std::cout << dataAcceleration << std::endl;
 
   // Ros node initialization
+  std::cout << "Initializing ROS node..." << std::endl;
   ros::init(argc, argv, "talker");
   ros::NodeHandle n;
 
@@ -242,30 +266,30 @@ int main(int argc, char **argv)
     
     std::cout 
       << "\npoints " 
-      << initialTrajectory.dataPosition.coeff(0,i) 
+      << initialTrajectory->dataPosition.coeff(0,i) 
       << " " 
-      << initialTrajectory.dataPosition.coeff(1,i)
+      << initialTrajectory->dataPosition.coeff(1,i)
       << " " 
-      << initialTrajectory.dataPosition.coeff(2,i)
+      << initialTrajectory->dataPosition.coeff(2,i)
       << " " 
-      << initialTrajectory.dataPosition.coeff(3,i)
+      << initialTrajectory->dataPosition.coeff(3,i)
       << " " 
-      << initialTrajectory.dataPosition.coeff(4,i)
+      << initialTrajectory->dataPosition.coeff(4,i)
       << " " 
-      << initialTrajectory.dataPosition.coeff(5,i)
+      << initialTrajectory->dataPosition.coeff(5,i)
       << std::endl;      
 
     target_joints = ra.IKinematics(
-      initialTrajectory.dataPosition.coeff(0,i), 
-      initialTrajectory.dataPosition.coeff(1,i), 
-      initialTrajectory.dataPosition.coeff(2,i), 
-      initialTrajectory.dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
-      initialTrajectory.dataPosition.coeff(4,i), 
-      initialTrajectory.dataPosition.coeff(5,i),
+      initialTrajectory->dataPosition.coeff(0,i), 
+      initialTrajectory->dataPosition.coeff(1,i), 
+      initialTrajectory->dataPosition.coeff(2,i), 
+      initialTrajectory->dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
+      initialTrajectory->dataPosition.coeff(4,i), 
+      initialTrajectory->dataPosition.coeff(5,i),
       giunti_belli,
-      initialTrajectory.dataVelocities,
+      initialTrajectory->dataVelocities,
       i,
-      initialTrajectory.dataAcceleration,
+      initialTrajectory->dataAcceleration,
       length,
       vel_,
       acc_,
@@ -321,12 +345,12 @@ int main(int argc, char **argv)
 
     loop_rate.sleep();
     i++;
-    for(int i = 0; i < 6; i++)
-      previous_vel_[i] = vel_[i];
+    for(int j = 0; j < 6; j++)
+      previous_vel_[j] = vel_[j];
   }
-    
-    msg.points = points;
-        chatter_pub.publish(msg);
+
+  msg.points = points;
+  chatter_pub.publish(msg);
 
   return 0;
 }

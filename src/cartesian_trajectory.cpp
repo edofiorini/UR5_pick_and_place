@@ -1,16 +1,24 @@
 #include "cartesian_trajectory.hpp"
 
+#include <iostream>
+#include <cmath>
 #include <Eigen/Eigen>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <Eigen/Eigenvalues>
 
-#include <cmath>
-
 using namespace Eigen;
+
+// PUBLIC METHODS
 
 CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, float ti, float tf, float Ts) {
     length = (int)floor((tf - ti) / Ts);
+    // Build data matrices
+    std::cout << "Initializing trajectory matrices..." << std::endl;
+    dataPosition = MatrixXd(6, length);
+    dataVelocities = MatrixXd(6, length);
+    dataAcceleration = MatrixXd(6, length);
+
     MatrixXd T(1, length);
     MatrixXd q(1, length);
     MatrixXd qd(1, length);
@@ -23,6 +31,7 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     MatrixXd dp_tilde(3, length);
     MatrixXd ddp_tilde(3, length);
 
+    std::cout << "Lineat trajectory computation..." << std::endl;
     linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
     // std::cout << p_tilde << std::endl;
     //// std::cout<< "Linear_tilde: " << p_tilde << "\n" << std::endl;
@@ -37,6 +46,8 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     //// std::cout << "Circular_tilde: " << dp_tilde1.row(0) << "\n" << std::endl;
 
     // linear motion - Position in operational space without TIMING LAW
+    /*
+    std::cout << "Path length computation..." << std::endl;
     MatrixXd support = pf - pi;
     double end = support.norm();
 
@@ -45,13 +56,13 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     int count = 0;
     for (float i = ti; i < length1; i++)
     {
-        if (count >= length1)
-        {
+      if (count >= length1)
+      {
         break;
-        }
-        s(0, count) = i;
-        count++;
-    }
+      }
+      s(0, count) = i;
+      count++;
+    }*/
 
     // MatrixXd p(3, length1);
     // MatrixXd dp(3, length1);
@@ -68,10 +79,9 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     // circular_motion(T, p1, dp1, ddp1, pi, pf, Ts, c, length2);
     // // std::cout << "Circular_motion: " << p1 << "\n"<< std::endl;
     // Frenet Frame to find the orientation of the end-effector
-
-    MatrixXd o_EE_t(3, 2);
-    MatrixXd o_EE_n(3, 2);
-    MatrixXd o_EE_b(3, 2);
+    // MatrixXd o_EE_t(3, 2);
+    // MatrixXd o_EE_n(3, 2);
+    // MatrixXd o_EE_b(3, 2);
 
     // @todo actually not used since orientation is fixed due to nan values
     // quaterions should be converted in euler angles to keep the same orientation
@@ -87,12 +97,15 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     // frenet_frame(p, dp, ddp, o_EE_t, o_EE_n, o_EE_b, PHI_i, PHI_f, length1);
 
     // EE_orientation with the TIMING LAW
+    std::cout << "Initializing orientation matrices..." << std::endl;
     MatrixXd o_tilde(3, length);
     MatrixXd do_tilde(3, length);
     MatrixXd ddo_tilde(3, length);
     EE_orientation(T, PHI_i, PHI_f, o_tilde, do_tilde, ddo_tilde, pi, pf, ti, tf, Ts);
     // std::cout << "o_tilde" << o_tilde << std::endl;
+
     // Put the 3d coordinate togheter
+    std::cout << "Initializing position, velocity and acceleration matrices..." << std::endl;
     dataPosition.block(0, 0, 3, length) = p_tilde.block(0, 0, 3, length);
     dataPosition.block(3, 0, 3, length) = o_tilde.block(0, 0, 3, length);
 
@@ -103,7 +116,13 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     dataAcceleration.block(3, 0, 3, length) = ddo_tilde.block(0, 0, 3, length);
 }
 
-void linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
+float CartesianTrajectory::get_length(){
+  return length;
+}
+
+// PRIVATE METHODS
+
+void CartesianTrajectory::linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
 {
 
   float qi = 0;
@@ -119,7 +138,7 @@ void linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &
   MatrixXd sd(1, length);
   MatrixXd sdd(1, length);
 
-  fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
+  CartesianTrajectory::fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
 
   for (int i = 0; i < length; i++)
   {
@@ -129,7 +148,7 @@ void linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &
   }
 }
 
-void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, float ti, float tf, float qi, float dqi, float ddqi, float qf, float dqf, float ddqf, float Ts)
+void CartesianTrajectory::fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, float ti, float tf, float qi, float dqi, float ddqi, float qf, float dqf, float ddqf, float Ts)
 {
 
   MatrixXd H(6, 6);
@@ -180,7 +199,7 @@ void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, fl
   }
 }
 
-void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_tilde, MatrixXd &do_tilde, MatrixXd &ddo_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
+void CartesianTrajectory::EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_tilde, MatrixXd &do_tilde, MatrixXd &ddo_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
 {
 
   // @todo understand how to deal with nan orientations, (consider them as infinity or use the PHI_i)
@@ -197,7 +216,7 @@ void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_t
   MatrixXd sd(1, length);
   MatrixXd sdd(1, length);
 
-  fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
+  CartesianTrajectory::fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
 
   MatrixXd support1 = PHI_f - PHI_i;
   MatrixXd l = support1 / support1.norm();
@@ -211,7 +230,7 @@ void EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_t
 
 //all methods below are not used
 
-double sign_func(double x)
+double CartesianTrajectory::sign_func(double x)
 {
   if (x > 0)
   {
@@ -227,7 +246,7 @@ double sign_func(double x)
   }
 }
 
-double vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
+double CartesianTrajectory::vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
 {
   double toRad = 2 * 3.14 / 360;
   Vector3d xprod = v1.cross(v2);
@@ -242,7 +261,7 @@ double vecangle(Vector3d &v1, Vector3d &v2, Vector3d &normal)
   // degrees = radians * (180.0/3.141592653589793238463)
 }
 
-int circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c)
+int CartesianTrajectory::circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c)
 {
   MatrixXd n = (pi - c);
   MatrixXd rho(1, 1);
@@ -258,7 +277,7 @@ int circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c)
   return length;
 }
 
-void circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c, int length)
+void CartesianTrajectory::circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c, int length)
 {
 
   MatrixXd n = (pi - c);
@@ -328,7 +347,7 @@ void circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matr
   }
 }
 
-void linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &s, MatrixXd &pi, MatrixXd &pf, float Ts, int length1)
+void CartesianTrajectory::linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &s, MatrixXd &pi, MatrixXd &pf, float Ts, int length1)
 {
   MatrixXd support = pf - pi;
   double end = support.norm();
@@ -346,7 +365,7 @@ void linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, Matrix
   }
 }
 
-void circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, MatrixXd &c, float ti, float tf, float Ts, int length_qf)
+void CartesianTrajectory::circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, MatrixXd &c, float ti, float tf, float Ts, int length_qf)
 {
 
   MatrixXd n = (pi - c);
@@ -369,7 +388,7 @@ void circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd
   MatrixXd sd(1, length);
   MatrixXd sdd(1, length);
 
-  fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
+  CartesianTrajectory::fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
 
   MatrixXd p_prime(3, length);
 
@@ -421,7 +440,7 @@ void circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd
   }
 }
 
-void frenet_frame(MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &o_EE_t, MatrixXd &o_EE_n, MatrixXd &o_EE_b, MatrixXd &PHI_i, MatrixXd &PHI_f, int length)
+void CartesianTrajectory::frenet_frame(MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &o_EE_t, MatrixXd &o_EE_n, MatrixXd &o_EE_b, MatrixXd &PHI_i, MatrixXd &PHI_f, int length)
 {
 
   for (int column = 0; column < 2; column++)
