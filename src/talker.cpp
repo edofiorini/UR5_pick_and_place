@@ -452,9 +452,9 @@ void jointsCallback(const sensor_msgs::JointState& msg) {
 
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
-    if(++imgCount < 5)
-        return;
-    imgCount = 0;
+    // if(++imgCount < 5)
+    //     return;
+    // imgCount = 0;
 
     cv::Mat image, imageCopy;
     try {
@@ -488,13 +488,15 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         for(int i=0; i<ids.size(); i++)
             cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
 
-    } else // Show rejected candidates
-        cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
+    } //else // Show rejected candidates
+        //cv::aruco::drawDetectedMarkers(imageCopy, rejCandidates);
     // Show results
-    cv::imshow("out", imageCopy);
+    //cv::imshow("out", imageCopy);
 
-    char key = (char) cv::waitKey(1);
+    //char key = (char) cv::waitKey(1);
 }
+
+
 
 /**
  * This tutorial demonstrMatrix3f m;
@@ -533,21 +535,8 @@ int main(int argc, char **argv)
       1,
       1;
 
-  // Aruco Blue
-  // point:
-  // - Translation: [0.643, 0.327, 0.506]
-  // - Rotation: in Quaternion [-0.494, 0.507, -0.504, 0.495]
-  //             in RPY (radian) [-1.572, 0.004, -1.592]
-  //             in RPY (degree) [-90.070, 0.246, -91.225]
-  // PHI_f << 1.6634562, 
-  //         1.5487069,
-  //         3.0529328 ;
-  //0.223, -0.616, 1.124
-  // -0.629, -0.226, 0.499
-/*  pi << -0.629, 
-      -0.226,
-      0.499;
-  */
+
+
   pi << 0.491,
         -0.008,
         1.134;
@@ -556,9 +545,7 @@ int main(int argc, char **argv)
         -0.464, 
         0.574;
          
-  // pf << 0.081, 
-  //      -0.166, 
-  //       1.125;
+
 
   linear_tilde(T, p_tilde, dp_tilde, ddp_tilde, pi, pf, ti, tf, Ts);
  // std::cout << p_tilde << std::endl;
@@ -623,15 +610,6 @@ int main(int argc, char **argv)
            1.4777122,
            -2.0672861;
 
-
-  
-
-  // PHI_i <<  1.550996,
-  //           0.0014283,
-  //           -0.0014003;
-  // PHI_f << 1.6634562, 
-  //         1.5487069,
-  //         3.0529328 ;
   
   // @todo frenet_frame doesn't work properly there is a problem with types
   // if you try different pi and pf you will find out a type problem
@@ -682,8 +660,8 @@ int main(int argc, char **argv)
 */
     
   // Vision system
-  //cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
-  //imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
+  cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
+  imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
   
