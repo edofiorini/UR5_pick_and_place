@@ -24,6 +24,8 @@
 
 using namespace Eigen;
 
+bool joints_done = false;
+
 void fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, float ti, float tf, float qi, float dqi, float ddqi, float qf, float dqf, float ddqf, float Ts)
 {
 
@@ -441,8 +443,11 @@ void jointsCallback(const sensor_msgs::JointState& msg) {
 //   position[13]: 0.00270666
     // std::cout << msg.position[0] << std::endl;
     for(int i=0; i<6; i++) {
+      
       joints[i] = msg.position[i];
+      //std::cout<<"giunto "<<joints[i]<<std::endl;
     }
+      joints_done = true;
 }
 
 
@@ -661,7 +666,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   RobotArm ra(n);
-
+/*
   ros::AsyncSpinner spinner(2);
 
   InitialPose arm;
@@ -674,7 +679,7 @@ int main(int argc, char **argv)
   {
     usleep(50000);
   }
-
+*/
     
   // Vision system
   //cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
@@ -682,19 +687,30 @@ int main(int argc, char **argv)
   // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
   //ros::spin();
   
-  joint_state_sub = n.subscribe("/robot/joint_states", 6, jointsCallback);
-  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 100000);
+  joint_state_sub = n.subscribe("/robot/joint_states", 1, jointsCallback);
+  ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 10000);
 
   ros::Rate loop_rate(1/Ts);
   KDL::JntArray target_joints;
   int i = 0;
   double previous_vel_[6];
+    while(!joints_done)
+    {
+      ros::spinOnce();
+    };
+  
+  double giunti_belli[6];
+  for(int i = 0; i < 6; i++)
+  {
+    giunti_belli[i] = joints[i];
+  }
+    trajectory_msgs::JointTrajectory msg;
+    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
   while (ros::ok())
   {
     if (i == length) {
       break;
     }
-    trajectory_msgs::JointTrajectory msg;
     msg.joint_names = {
         "robot_arm_shoulder_pan_joint",
         "robot_arm_shoulder_lift_joint",
@@ -708,8 +724,9 @@ int main(int argc, char **argv)
     double acc_[6];
     //bool * flag = new bool(false);
     bool* flag = new bool(false);
+
     
-    std::cout << "points " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
+    std::cout << "\npoints " << dataPosition.coeff(0,i) << " " << dataPosition.coeff(1,i)<< " " << dataPosition.coeff(2,i)<< " " << dataPosition.coeff(3,i)<< " " << dataPosition.coeff(4,i)<< " " << dataPosition.coeff(5,i)<< std::endl;
     target_joints = ra.IKinematics(
       dataPosition.coeff(0,i), 
       dataPosition.coeff(1,i), 
@@ -717,7 +734,7 @@ int main(int argc, char **argv)
       dataPosition.coeff(3,i), // @todo inspect the use of nan in orientation
       dataPosition.coeff(4,i), 
       dataPosition.coeff(5,i),
-      joints,
+      giunti_belli,
       dataVelocities,
       i,
       dataAcceleration,
@@ -728,13 +745,23 @@ int main(int argc, char **argv)
     );
 
     std::cout << " flag : " << *flag << std::endl;
-   if(*flag){
+    bool check = true;
+    for(int i = 0; i < 6; i++)
+    {
+      if(target_joints.data[i] > 3.14 || target_joints.data[i] < -3.14)
+      {
+        check = false;
+        break;
+      }
+    }
+
+   if(*flag && check){
    //if (i == 0 || i == round(length/2) || i == length -1) {
     
-    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
     std::cout << "Sending data to Ros" << std::endl;
     trajectory_msgs::JointTrajectoryPoint point;
     float p = 0.0001;
+    point.positions.resize(6);
     point.positions = { 
       target_joints.data[0], 
       target_joints.data[1], 
@@ -746,7 +773,9 @@ int main(int argc, char **argv)
     if (i == 0 || i == length-1) {
       p = 0.0f;
     }
+    /*point.velocities.resize(6);
     point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};
+    point.accelerations.resize(6);
     point.accelerations = {
       (vel_[0]-previous_vel_[0])/Ts,
       (vel_[1]-previous_vel_[1])/Ts,
@@ -754,18 +783,11 @@ int main(int argc, char **argv)
       (vel_[3]-previous_vel_[3])/Ts,
       (vel_[4]-previous_vel_[4])/Ts,
       (vel_[5]-previous_vel_[5])/Ts
-    };
-    point.time_from_start = ros::Duration(i);
+    };*/
+    point.time_from_start = ros::Duration(i+1);
     points.push_back(point);
 
-    msg.points = points;
 
-    
-       std::cout << "velocities : " << vel_[0] << " " << vel_[1] << " "<< vel_[2] << " "<< vel_[3] << " "<< vel_[4] << " "<< vel_[5] << " "<<std::endl;   
-       std::cout<< "joints " <<target_joints.data[0]<<" "<<target_joints.data[1]<<" "
-        <<target_joints.data[2]<<" "<<target_joints.data[3]<<" "<<target_joints.data[4]<<" "<<target_joints.data[5]<<std::endl;
-
-        chatter_pub.publish(msg);
     }
     ros::spinOnce();
 
@@ -774,6 +796,9 @@ int main(int argc, char **argv)
     for(int i = 0; i < 6; i++)
       previous_vel_[i] = vel_[i];
   }
+    
+    msg.points = points;
+        chatter_pub.publish(msg);
 
   return 0;
 }
