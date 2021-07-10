@@ -206,7 +206,7 @@ void CartesianTrajectory::EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd 
   float qi = 0;
   float dqi = 0;
   float ddqi = 0;
-  MatrixXd support = pf - pi;
+  MatrixXd support = PHI_f- PHI_i;
   float qf = support.norm();
   float dqf = 0;
   float ddqf = 0;

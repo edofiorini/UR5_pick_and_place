@@ -168,20 +168,23 @@ int main(int argc, char **argv)
       1,
       1;
 
-  pi << 0.491,
-        -0.008,
+  /*pi << 0.491,
+       -0.008,
         1.134;
+        */
+  pi << -0.629, -0.226, 0.501;
 
   pf <<  0.543, 
         -0.464, 
-        0.574;
-         
+        1.1;
+/*
+   pf << -0.197725, 
+         -0.495062, 
+          2.764543;
+        */ 
   MatrixXd PHI_i(3, 1);
   MatrixXd PHI_f(3, 1);
 
-  // @todo actually not used since orientation is fixed due to nan values
-  // quaterions should be converted in euler angles to keep the same orientation
-  // and the use of frenet frame
   PHI_i <<  3.073289,
             0.6506525,
             -1.4879759;
@@ -296,7 +299,7 @@ int main(int argc, char **argv)
       flag
     );
 
-    std::cout << " flag : " << *flag << std::endl;
+    //std::cout << " flag : " << *flag << std::endl;
     bool check = true;
     for(int i = 0; i < 6; i++)
     {
@@ -336,7 +339,7 @@ int main(int argc, char **argv)
       (vel_[4]-previous_vel_[4])/Ts,
       (vel_[5]-previous_vel_[5])/Ts
     };*/
-    point.time_from_start = ros::Duration(i+1);
+    point.time_from_start = ros::Duration(i*Ts);
     points.push_back(point);
 
 

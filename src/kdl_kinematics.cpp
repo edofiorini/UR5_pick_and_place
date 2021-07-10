@@ -90,7 +90,7 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
     *flag = true;
     
   
-    std::cout << "\nresult ik_p "<<result_p<<std::endl;
+    //std::cout << "\nresult ik_p "<<result_p<<std::endl;
 
     // tf::TransformListener listener;
     // tf::StampedTransform transform;
@@ -118,7 +118,7 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
       *flag = false;
     }
 
-    std::cout<<"result ik_v " << result_v << std::endl;
+    //std::cout<<"result ik_v " << result_v << std::endl;
 
     for(int idx =0;idx<6;idx++)
       vel_[idx] = target_joints_vel.data[idx];

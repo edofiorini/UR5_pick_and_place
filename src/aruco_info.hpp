@@ -6,6 +6,7 @@ private:
     int id;
     cv::Vec3d rvec;
     cv::Vec3d tvec;
+    void addToTf();
 
 public:
     // Constructor
