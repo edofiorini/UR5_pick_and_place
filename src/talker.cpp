@@ -157,7 +157,7 @@ int main(int argc, char **argv)
   // Trajectory initial, final and sampling time
   std::cout << "Setting time..." << std::endl;
   float ti = 0.0f;
-  float tf = 4.0f;
+  float tf = 2.0f;
   float Ts = 0.1f;
 
   std::cout << "Setting points matrices..." << std::endl;
@@ -172,26 +172,19 @@ int main(int argc, char **argv)
        -0.008,
         1.134;
         */
-  pi << -0.629, -0.226, 0.501;
+  pi << 0,
+        0,
+        1.2;
+  pf << 0.643, 0.327, 0.506;
 
-  pf <<  0.543, 
-        -0.464, 
-        1.1;
-/*
-   pf << -0.197725, 
-         -0.495062, 
-          2.764543;
-        */ 
+
   MatrixXd PHI_i(3, 1);
   MatrixXd PHI_f(3, 1);
 
-  PHI_i <<  3.073289,
-            0.6506525,
-            -1.4879759;
-
-  PHI_f << 0.4884818,
-           1.4777122,
-           -2.0672861;
+  PHI_i << 0,
+            0,
+            0;
+  PHI_f << -1.572, 0.004, -1.592;
 
   std::cout << "Initializing trajectory..." << std::endl;
   CartesianTrajectory *initialTrajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
