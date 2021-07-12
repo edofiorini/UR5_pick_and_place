@@ -33,7 +33,10 @@ RobotArm::RobotArm(ros::NodeHandle nh_)
   }
 
 
-KDL::Frame RobotArm::FKinematics(joints) {
+KDL::Frame RobotArm::FKinematics(double joints[6]) {
+  KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
+  unsigned int nj = chain.getNrOfJoints();
+  KDL::JntArray jointpositions = KDL::JntArray(nj);
   for(unsigned int i=0;i<nj;i++){
       if (i == 0) {
         jointpositions(i)= joints[2];

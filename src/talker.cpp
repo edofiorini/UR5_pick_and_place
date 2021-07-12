@@ -299,12 +299,20 @@ int main(int argc, char **argv) {
  
   pf << 0.643, 0.327, 0.506;
   //c << 1, 1, 1;
-  PHI_i << 0, 0, 0;
+  //PHI_i << 0, 0, 0;
   PHI_f << -1.572, 0.004, -1.592;  
 
   KDL::Frame fr = ra.FKinematics(joints);
 
-  pi << fr.p.x, fr.p.y, fr.p.z;  
+  pi << fr.p.x(), fr.p.y(), fr.p.z();  
+  //@todo verificare il frame di riferimento corretto, l'orientamento iniziale non corrisponde.
+  //Il problema potrebbe essere che non è giusto usare GetEulerZYZ oppure non stiamo guardando il giusto tf ('robot_arm_tool0' oppure 'robot_wsg50_center')
+  //verificare con rosrun tf tf_echo robot_base_footprint robot_wsg50_center
+
+  //@todo se funziona portare tutto il codice nella funzione sendTrajectory per non replicarlo ad ogni pezzo di traiettoria
+  double alpha,beta,gamma;
+  fr.M.GetEulerZYZ(alpha,beta,gamma);
+  PHI_i << alpha,beta,gamma;
 
   std::cout << "Initializing trajectory..." << std::endl;
   CartesianTrajectory *initialTrajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);

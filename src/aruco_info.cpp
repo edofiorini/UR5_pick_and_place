@@ -28,6 +28,7 @@ cv::Vec3d ArucoInfo::get_tvec(){
 
 void ArucoInfo::addToTf() {
     //robot_wrist_rgbd_color_frame oppure robot_wrist_rgbd_color_optical_frame
+    //@todo capire se è visibile sto frame da qualche parte
     tf2_ros::TransformBroadcaster tfb;
     geometry_msgs::TransformStamped transformStamped;
 
