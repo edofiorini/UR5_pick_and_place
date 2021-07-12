@@ -32,7 +32,27 @@ RobotArm::RobotArm(ros::NodeHandle nh_)
     my_tree.getChain("robot_base_footprint", "robot_arm_tool0", chain);
   }
 
-KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6], Eigen::MatrixXd &operational_velocities, int pos, Eigen::MatrixXd &operational_acc,int length, double vel_[6], double acc_[6], bool *flag)
+
+KDL::Frame RobotArm::FKinematics(joints) {
+  for(unsigned int i=0;i<nj;i++){
+      if (i == 0) {
+        jointpositions(i)= joints[2];
+      } else if (i == 1) {
+        jointpositions(i)= joints[1];
+      } else if (i == 2){
+        jointpositions(i)= joints[0];
+      } else{
+        jointpositions(i)= joints[i];
+      }
+  }
+
+  KDL::Frame cartpos;
+  bool kinematics_status;
+  kinematics_status = fk.JntToCart(jointpositions,cartpos); // @todo check what to do with this status
+  return cartpos;
+}
+
+KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, double pitch, double yaw, double joints[6], Eigen::MatrixXd &operational_velocities, int pos, Eigen::MatrixXd &operational_acc,int length, double vel_[6], double acc_[6], bool *flag)
   {
     KDL::ChainFkSolverPos_recursive fk = KDL::ChainFkSolverPos_recursive(chain);
 
@@ -60,10 +80,6 @@ KDL::JntArray  RobotArm::IKinematics(double X, double Y, double Z, double roll, 
     KDL::ChainIkSolverVel_wdls ik_v = KDL::ChainIkSolverVel_wdls(chain);
     KDL::ChainIkSolverPos_LMA	ik_p = KDL::ChainIkSolverPos_LMA(chain);
     // KDL::ChainIkSolverAcc	ik_a = KDL::ChainIkSolverAcc(chain);
-
-    KDL::Frame cartpos;
-    bool kinematics_status;
-    kinematics_status = fk.JntToCart(jointpositions,cartpos); // @todo check what to do with this status
 
     // You have done with the initialization part, now you can use IK  
     // Use directly a quaternion or create one from RPY values

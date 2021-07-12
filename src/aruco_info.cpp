@@ -1,10 +1,11 @@
 #include "aruco_info.hpp"
 
+#include <iostream>
+#include <string>
+
 #include <ros/ros.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
-#include <iostream>
-#include <string>
 
 ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec){
     this->id = id;
