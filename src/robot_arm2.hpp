@@ -10,13 +10,13 @@ typedef actionlib::SimpleActionClient< control_msgs::FollowJointTrajectoryAction
 class InitialPose
 {
 private:
-  ros::NodeHandle nh_;
-  TrajClient* traj_client_;
+    ros::NodeHandle nh_;
+    TrajClient* traj_client_;
 
 public:
-  InitialPose();
-  ~InitialPose();
-  void startTrajectory(control_msgs::FollowJointTrajectoryGoal goal);
-  control_msgs::FollowJointTrajectoryGoal armExtensionTrajectory();
-  actionlib::SimpleClientGoalState getState();
+    InitialPose();
+    ~InitialPose();
+    void startTrajectory(control_msgs::FollowJointTrajectoryGoal goal);
+    control_msgs::FollowJointTrajectoryGoal armExtensionTrajectory();
+    actionlib::SimpleClientGoalState getState();
 };

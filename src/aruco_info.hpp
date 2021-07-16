@@ -13,7 +13,7 @@ public:
     ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec);
 
     // Getter
-    int get_id();
-    cv::Vec3d get_rvec();
-    cv::Vec3d get_tvec();
+    int getId();
+    cv::Vec3d getRvec();
+    cv::Vec3d getTvec();
 };
