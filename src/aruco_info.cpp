@@ -14,15 +14,15 @@ ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec){
     this->addToTf();
 }
 
-int ArucoInfo::get_id(){
+int ArucoInfo::getId(){
     return id;
 }
 
-cv::Vec3d ArucoInfo::get_rvec(){
+cv::Vec3d ArucoInfo::getRvec(){
     return rvec;
 }
 
-cv::Vec3d ArucoInfo::get_tvec(){
+cv::Vec3d ArucoInfo::getTvec(){
     return tvec;
 }
 
@@ -40,7 +40,7 @@ void ArucoInfo::addToTf() {
     transformStamped.transform.translation.y = tvec[1];
     transformStamped.transform.translation.z = tvec[2];
     tf2::Quaternion q;
-        q.setRPY(rvec[0], rvec[1], rvec[2]);
+    q.setRPY(rvec[0], rvec[1], rvec[2]);
     transformStamped.transform.rotation.x = q.x();
     transformStamped.transform.rotation.y = q.y();
     transformStamped.transform.rotation.z = q.z();
