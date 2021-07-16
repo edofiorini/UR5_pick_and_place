@@ -52,36 +52,6 @@ void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
 
 void jointsCallback(const sensor_msgs::JointState &msg)
 {
-    //   name[]
-    //   name[0]: robot_arm_elbow_joint
-    //   name[1]: robot_arm_shoulder_lift_joint
-    //   name[2]: robot_arm_shoulder_pan_joint
-    //   name[3]: robot_arm_wrist_1_joint
-    //   name[4]: robot_arm_wrist_2_joint
-    //   name[5]: robot_arm_wrist_3_joint
-    //   name[6]: robot_back_left_wheel_joint
-    //   name[7]: robot_back_right_wheel_joint
-    //   name[8]: robot_front_laser_base_joint
-    //   name[9]: robot_front_left_wheel_joint
-    //   name[10]: robot_front_right_wheel_joint
-    //   name[11]: robot_rear_laser_base_joint
-    //   name[12]: robot_wsg50_finger_left_joint
-    //   name[13]: robot_wsg50_finger_right_joint
-    // position[]
-    //   position[0]: 0.351993
-    //   position[1]: -0.187495
-    //   position[2]: -1.88308
-    //   position[3]: 3.1416
-    //   position[4]: -1.67409
-    //   position[5]: -0.771451
-    //   position[6]: 0.00665016
-    //   position[7]: 8.72015e-05
-    //   position[8]: 1.06114e-06
-    //   position[9]: 0.00268441
-    //   position[10]: 0.00834393
-    //   position[11]: -5.51283e-08
-    //   position[12]: -0.00270603
-    //   position[13]: 0.00270666
     // std::cout << msg.position[0] << std::endl;
     for (int i = 0; i < 6; i++)
     {
@@ -143,10 +113,13 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     //char key = (char) cv::waitKey(1);
 }
 
-void sendTrajectory(CartesianTrajectory *trajectory, float Ts, RobotArm ra, ros::Publisher chatter_pub)
+void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
 {
+    std::cout << "Initializing trajectory..." << std::endl;
+    CartesianTrajectory *trajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
+    std::cout << "Trajectory initialized!" << std::endl;
 
-    float length = trajectory->get_length();
+    int length = trajectory->get_length();
     double previous_vel_[6];
     KDL::JntArray target_joints;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
@@ -210,10 +183,10 @@ void sendTrajectory(CartesianTrajectory *trajectory, float Ts, RobotArm ra, ros:
             //if (i == 0 || i == round(length/2) || i == length -1) {
             std::cout << "Sending data to Ros" << std::endl;
 
-            float p = 0.0001f;
+            double p = 0.0001;
             if (i == 0 || i == length - 1)
             {
-                p = 0.0f;
+                p = 0.0;
             }
 
             trajectory_msgs::JointTrajectoryPoint point;
@@ -276,31 +249,19 @@ int main(int argc, char **argv)
 
     // Trajectory initial, final and sampling time
     std::cout << "Setting time..." << std::endl;
-    float ti = 0.0f;
-    float tf = 2.0f;
-    float Ts = 0.1f;
+    double ti = 0.0;
+    double tf = 2.0;
+    double Ts = 0.1;
 
     ros::Rate loop_rate(1 / Ts);
 
     std::cout << "Setting points matrices..." << std::endl;
-    MatrixXd pi(3, 1);
     MatrixXd pf(3, 1);
-    //MatrixXd c(3, 1);
-    MatrixXd PHI_i(3, 1);
     MatrixXd PHI_f(3, 1);
 
-    //pi << 0.491, -0.008, 1.134;
-
-    pf << 0.613, 0.318, 0.506;
-    //c << 1, 1, 1;
-    //PHI_i << 0, 0, 0;
-
-    //PHI_f << -1.847, -1.566, -1.316;
-    //roll+pi/2,pitch-pi/2 rispetto a robot_arm_tool0
-    //davanti al cubo blu  -0.282, -3.14, -1.311
-    PHI_f << -0.282, -3.14, -1.311;
+    MatrixXd pi(3, 1);
+    MatrixXd PHI_i(3, 1);
     KDL::Frame fr = ra.FKinematics(joints);
-
     pi << fr.p.x(), fr.p.y(), fr.p.z();
     //@todo verificare il frame di riferimento corretto, l'orientamento iniziale non corrisponde.
     //Il problema potrebbe essere che non è giusto usare GetEulerZYZ oppure non stiamo guardando il giusto tf ('robot_arm_tool0' oppure 'robot_wsg50_center')
@@ -310,12 +271,22 @@ int main(int argc, char **argv)
     double alpha, beta, gamma;
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
+    pf << 0, 0, 1.2;
+    PHI_f << 0, 0, 0;
 
-    std::cout << "Initializing trajectory..." << std::endl;
-    CartesianTrajectory *initialTrajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
-    std::cout << "Trajectory initialized!" << std::endl;
+    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    ros::spinOnce();
+    loop_rate.sleep();
+    pi = pf;
+    PHI_i = PHI_f;
 
-    sendTrajectory(initialTrajectory, Ts, ra, chatter_pub);
+    pf << 0.613, 0.318, 0.506;
+    //roll+pi/2,pitch-pi/2 rispetto a robot_arm_tool0
+    //davanti al cubo blu  -0.282, -3.14, -1.311
+    PHI_f << -0.282, -3.14, -1.311;
+    ti = 2.0;
+    tf = 4.0;
+    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
     // std::cout << dataAcceleration << std::endl;
 
     /*
@@ -332,10 +303,10 @@ int main(int argc, char **argv)
     usleep(50000);
   }
 */
-    while (ros::ok())
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
+    // while (ros::ok())
+    // {
+    //     ros::spinOnce();
+    //     loop_rate.sleep();
+    // }
     return 0;
 }

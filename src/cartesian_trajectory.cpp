@@ -11,9 +11,10 @@ using namespace Eigen;
 
 // PUBLIC METHODS
 
-CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, float ti, float tf, float Ts)
+CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts)
 {
     length = (int)floor((tf - ti) / Ts);
+    
     // Build data matrices
     std::cout << "Initializing trajectory matrices..." << std::endl;
     dataPosition = MatrixXd(6, length);
@@ -115,25 +116,25 @@ CartesianTrajectory::CartesianTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_
     dataAcceleration.block(3, 0, 3, length) = ddo_tilde.block(0, 0, 3, length);
 }
 
-float CartesianTrajectory::get_length()
+int CartesianTrajectory::get_length()
 {
     return length;
 }
 
 // PRIVATE METHODS
 
-void CartesianTrajectory::linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
+void CartesianTrajectory::linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, double ti, double tf, double Ts)
 {
 
-    float qi = 0;
-    float dqi = 0;
-    float ddqi = 0;
+    double qi = 0;
+    double dqi = 0;
+    double ddqi = 0;
     MatrixXd support = pf - pi;
-    float qf = (float)support.norm();
-    float dqf = 0;
-    float ddqf = 0;
+    double qf = (double)support.norm();
+    double dqf = 0;
+    double ddqf = 0;
 
-    int length = (int)floor((tf - ti) / Ts);
+    // int length = (int)floor((tf - ti) / Ts);
     MatrixXd s(1, length);
     MatrixXd sd(1, length);
     MatrixXd sdd(1, length);
@@ -143,21 +144,21 @@ void CartesianTrajectory::linear_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd 
     for (int i = 0; i < length; i++)
     {
         p_tilde.col(i) = pi + (support / support.norm()) * s.col(i);
-        dp_tilde.col(i) = pi + ((support) / support.norm()) * sd.col(i);
-        ddp_tilde.col(i) = pi + ((support) / support.norm()) * sdd.col(i);
+        dp_tilde.col(i) = ((support) / support.norm()) * sd.col(i);
+        ddp_tilde.col(i) = ((support) / support.norm()) * sdd.col(i);
     }
 }
 
-void CartesianTrajectory::fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, float ti, float tf, float qi, float dqi, float ddqi, float qf, float dqf, float ddqf, float Ts)
+void CartesianTrajectory::fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &qd, MatrixXd &qdd, double ti, double tf, double qi, double dqi, double ddqi, double qf, double dqf, double ddqf, double Ts)
 {
-
+    double deltaT = tf-ti;
     MatrixXd H(6, 6);
-    H << 1, ti, pow(ti, 2), pow(ti, 3), pow(ti, 4), pow(ti, 5),
-        0, 1, 2 * ti, 3 * pow(ti, 2), 4 * pow(ti, 3), 5 * pow(ti, 4),
-        0, 0, 2, 6 * ti, 12 * pow(ti, 2), 20 * pow(ti, 3),
-        1, tf, pow(tf, 2), pow(tf, 3), pow(tf, 4), pow(tf, 5),
-        0, 1, 2 * tf, 3 * pow(tf, 2), 4 * pow(tf, 3), 5 * pow(tf, 4),
-        0, 0, 2, 6 * tf, 12 * pow(tf, 2), 20 * pow(tf, 3);
+    H << 1, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0,
+        0, 0, 2, 0, 0, 0,
+        1, deltaT, pow(deltaT, 2), pow(deltaT, 3), pow(deltaT, 4), pow(deltaT, 5),
+        0, 1, 2 * deltaT, 3 * pow(deltaT, 2), 4 * pow(deltaT, 3), 5 * pow(deltaT, 4),
+        0, 0, 2, 6 * deltaT, 12 * pow(deltaT, 2), 20 * pow(deltaT, 3);
 
     MatrixXd Q(6, 1);
     Q << qi,
@@ -176,42 +177,42 @@ void CartesianTrajectory::fifth_polinomials(MatrixXd &T, MatrixXd &q, MatrixXd &
     MatrixXd a4 = a.row(4);
     MatrixXd a5 = a.row(5);
 
-    int length = (int)floor((tf - ti) / Ts);
-    int count = 0;
-    for (float i = ti; i < length; i += Ts)
-    {
-        if (count >= length)
-        {
-            break;
-        }
-        T(0, count) = i;
-        count++;
-    }
+    // int length = (int)floor((tf - ti) / Ts);
+    // int count = 0;
+    // for (double i = ti; i < length; i += Ts)
+    // {
+    //     if (count >= length)
+    //     {
+    //         break;
+    //     }
+    //     T(0, count) = i;
+    //     count++;
+    // }
 
     // std::cout << "A coeff fifth polynomials: " << a0.coeff(0, 0) << " " << a1.coeff(0, 0) << " " << a2.coeff(0, 0) << " " << a3.coeff(0, 0) << " " << a4.coeff(0, 0) << " " << a5.coeff(0, 0) << "\n"
     // << std::endl;
     for (int i = 0; i < length; i++)
     {
-
-        q(0, i) = a5.coeff(0, 0) * pow(T.coeff(0, i), 5) + a4.coeff(0, 0) * pow(T.coeff(0, i), 4) + a3.coeff(0, 0) * pow(T.coeff(0, i), 3) + a2.coeff(0, 0) * pow(T.coeff(0, 0), 2) + a1.coeff(0, 0) * pow(T.coeff(0, i), 1) + a0.coeff(0, 0);
-        qd(0, i) = 5 * a5.coeff(0, 0) * pow(T.coeff(0, i), 4) + 4 * a4.coeff(0, 0) * pow(T.coeff(0, i), 3) + 3 * a3.coeff(0, 0) * pow(T.coeff(0, i), 2) + 2 * a2.coeff(0, 0) * pow(T.coeff(0, i), 1) + a1.coeff(0, 0);
-        qdd(0, i) = 20 * a5.coeff(0, 0) * pow(T.coeff(0, i), 3) + 12 * a4.coeff(0, 0) * pow(T.coeff(0, i), 2) + 6 * a3.coeff(0, 0) * pow(T.coeff(0, i), 1) + 2 * a2.coeff(0, 0);
+        double t = i*Ts;
+        q(0, i) = a5.coeff(0, 0) * pow(t, 5) + a4.coeff(0, 0) * pow(t, 4) + a3.coeff(0, 0) * pow(t, 3) + a2.coeff(0, 0) * pow(t, 2) + a1.coeff(0, 0) * pow(t, 1) + a0.coeff(0, 0);
+        qd(0, i) = 5 * a5.coeff(0, 0) * pow(t, 4) + 4 * a4.coeff(0, 0) * pow(t, 3) + 3 * a3.coeff(0, 0) * pow(t, 2) + 2 * a2.coeff(0, 0) * pow(t, 1) + a1.coeff(0, 0);
+        qdd(0, i) = 20 * a5.coeff(0, 0) * pow(t, 3) + 12 * a4.coeff(0, 0) * pow(t, 2) + 6 * a3.coeff(0, 0) * pow(t, 1) + 2 * a2.coeff(0, 0);
     }
 }
 
-void CartesianTrajectory::EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_tilde, MatrixXd &do_tilde, MatrixXd &ddo_tilde, MatrixXd &pi, MatrixXd &pf, float ti, float tf, float Ts)
+void CartesianTrajectory::EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd &PHI_f, MatrixXd &o_tilde, MatrixXd &do_tilde, MatrixXd &ddo_tilde, MatrixXd &pi, MatrixXd &pf, double ti, double tf, double Ts)
 {
 
     // @todo understand how to deal with nan orientations, (consider them as infinity or use the PHI_i)
-    float qi = 0;
-    float dqi = 0;
-    float ddqi = 0;
+    double qi = 0;
+    double dqi = 0;
+    double ddqi = 0;
     MatrixXd support = PHI_f - PHI_i;
-    float qf = support.norm();
-    float dqf = 0;
-    float ddqf = 0;
+    double qf = support.norm();
+    double dqf = 0;
+    double ddqf = 0;
 
-    int length = (int)floor((tf - ti) / Ts);
+    // int length = (int)floor((tf - ti) / Ts);
     MatrixXd s(1, length);
     MatrixXd sd(1, length);
     MatrixXd sdd(1, length);
@@ -261,7 +262,7 @@ double CartesianTrajectory::vecangle(Vector3d &v1, Vector3d &v2, Vector3d &norma
     // degrees = radians * (180.0/3.141592653589793238463)
 }
 
-int CartesianTrajectory::circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c)
+int CartesianTrajectory::circular_length(MatrixXd &pi, MatrixXd &pf, double Ts, MatrixXd &c)
 {
     MatrixXd n = (pi - c);
     MatrixXd rho(1, 1);
@@ -277,7 +278,7 @@ int CartesianTrajectory::circular_length(MatrixXd &pi, MatrixXd &pf, float Ts, M
     return length;
 }
 
-void CartesianTrajectory::circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &pi, MatrixXd &pf, float Ts, MatrixXd &c, int length)
+void CartesianTrajectory::circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &pi, MatrixXd &pf, double Ts, MatrixXd &c, int length)
 {
 
     MatrixXd n = (pi - c);
@@ -290,7 +291,7 @@ void CartesianTrajectory::circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp
 
     MatrixXd s(1, length);
     int count = 0;
-    for (float i = 0; i < length; i++)
+    for (double i = 0; i < length; i++)
     {
         if (count >= length)
         {
@@ -347,7 +348,7 @@ void CartesianTrajectory::circular_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp
     }
 }
 
-void CartesianTrajectory::linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &s, MatrixXd &pi, MatrixXd &pf, float Ts, int length1)
+void CartesianTrajectory::linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, MatrixXd &ddp, MatrixXd &s, MatrixXd &pi, MatrixXd &pf, double Ts, int length1)
 {
     MatrixXd support = pf - pi;
     double end = support.norm();
@@ -365,7 +366,7 @@ void CartesianTrajectory::linear_motion(MatrixXd &T, MatrixXd &p, MatrixXd &dp, 
     }
 }
 
-void CartesianTrajectory::circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, MatrixXd &c, float ti, float tf, float Ts, int length_qf)
+void CartesianTrajectory::circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixXd &dp_tilde, MatrixXd &ddp_tilde, MatrixXd &pi, MatrixXd &pf, MatrixXd &c, double ti, double tf, double Ts, int length_qf)
 {
 
     MatrixXd n = (pi - c);
@@ -376,14 +377,14 @@ void CartesianTrajectory::circular_tilde(MatrixXd &T, MatrixXd &p_tilde, MatrixX
     Vector3d y = c - pi;
     Vector3d r = x.cross(y);
 
-    float qi = 0;
-    float dqi = 0;
-    float ddqi = 0;
-    float qf = (float)length_qf;
-    float dqf = 0;
-    float ddqf = 0;
+    double qi = 0;
+    double dqi = 0;
+    double ddqi = 0;
+    double qf = (double)length_qf;
+    double dqf = 0;
+    double ddqf = 0;
 
-    int length = (int)floor((tf - ti) / Ts);
+    // int length = (int)floor((tf - ti) / Ts);
     MatrixXd s(1, length);
     MatrixXd sd(1, length);
     MatrixXd sdd(1, length);
