@@ -221,6 +221,34 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
     chatter_pub.publish(msg);
 }
 
+bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
+    MatrixXd pOfNow(3, 1);
+    MatrixXd PHI_ofNow(3, 1);
+    double alpha, beta, gamma;
+
+    MatrixXd error(1,1);
+    error << 0.005;
+
+
+    KDL::Frame frameOfNow = ra.FKinematics(joints);
+    pOfNow << frameOfNow.p.x(), frameOfNow.p.y(), frameOfNow.p.z();
+    frameOfNow.M.GetRPY(alpha, beta, gamma);
+
+    PHI_ofNow << alpha, beta, gamma;
+
+    std::cout << pOfNow << "  -  " << pf << std::endl;
+
+    if(abs((pOfNow-pf).coeff(0,0))<error.coeff(0,0) &&
+        abs((pOfNow-pf).coeff(1,0))<error.coeff(0,0) &&
+        abs((pOfNow-pf).coeff(2,0))<error.coeff(0,0))
+        //abs((PHI_ofNow-PHI_f).coeff(0,0))<error.coeff(0,0) &&
+        //abs((PHI_ofNow-PHI_f).coeff(1,0))<error.coeff(0,0) &&
+        //abs((PHI_ofNow-PHI_f).coeff(2,0))<error.coeff(0,0))
+        return true;
+    else
+        return false;
+}
+
 /**
  * MAIN
  */
@@ -240,6 +268,7 @@ int main(int argc, char **argv)
     // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
 
     joint_state_sub = n.subscribe("/robot/joint_states", 1, jointsCallback);
+    
     ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 10000);
 
     while (!joints_done)
@@ -287,6 +316,15 @@ int main(int argc, char **argv)
     ti = 2.0;
     tf = 4.0;
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    while(!isAtFinalPosition(ra,pf,PHI_f)){
+          std::cout << "In ..." << std::endl;
+    }
+    std::cout << "Out ..." << std::endl;
+
+
+
+
+    
     // std::cout << dataAcceleration << std::endl;
 
     /*
