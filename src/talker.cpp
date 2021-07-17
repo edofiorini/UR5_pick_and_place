@@ -236,7 +236,7 @@ bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
 
     PHI_ofNow << alpha, beta, gamma;
 
-    std::cout << pOfNow << "  -  " << pf << std::endl;
+    //std::cout << pOfNow << "  -  " << pf << std::endl;
 
     if(abs((pOfNow-pf).coeff(0,0))<error.coeff(0,0) &&
         abs((pOfNow-pf).coeff(1,0))<error.coeff(0,0) &&
