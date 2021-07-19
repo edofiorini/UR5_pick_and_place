@@ -11,7 +11,10 @@ ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec){
     this->id = id;
     this->rvec = rvec;
     this->tvec = tvec;
-    this->addToTf();
+    //this->addToTf();
+    
+    std::cout << "detected aruco: " << id << std::endl;
+    std::cout << "pos: " << rvec[0] << "," << rvec[1] << "," << rvec[2];
 }
 
 int ArucoInfo::getId(){
@@ -35,7 +38,7 @@ void ArucoInfo::addToTf() {
     transformStamped.header.frame_id = "robot_wrist_rgbd_color_frame";
     transformStamped.child_frame_id = "aruco_" + std::to_string(id);
     //ROS_INFO("created frame: " +  transformStamped.child_frame_id);
-    std::cout << "created frame" << transformStamped.child_frame_id << std::endl;
+    std::cout << "created frame: " << transformStamped.child_frame_id << std::endl;
     transformStamped.transform.translation.x = tvec[0];
     transformStamped.transform.translation.y = tvec[1];
     transformStamped.transform.translation.z = tvec[2];

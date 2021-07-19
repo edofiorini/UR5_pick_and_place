@@ -42,6 +42,7 @@ double joints[6];
 ros::Publisher dataPub;
 ros::Subscriber imageSub, cameraSub, joint_state_sub;
 
+
 void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
 {
     // Retrive camera matrix
@@ -93,7 +94,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
 
     // At least one marker has been detected
     ROS_INFO("Cubes detected!");
-    // cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
+    cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
     // Aruco information container
     arucoVec = new std::vector<ArucoInfo>;
@@ -104,7 +105,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     {
         // Save aruco id, rotation and traslation
         arucoVec->push_back(ArucoInfo(ids[i], rvecs[i], tvecs[i]));
-        // cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
+        cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
     }
 
     // Show results
@@ -169,9 +170,9 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
             acc_);
 
         bool check = true;
-        for (int i = 0; i < 6; i++)
+        for (int j = 0; j < 6; j++)
         {
-            if (target_joints.data[i] > 3.14 || target_joints.data[i] < -3.14)
+            if (target_joints.data[j] > 3.14 || target_joints.data[j] < -3.14)
             {
                 check = false;
                 break;
@@ -182,12 +183,6 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
         {
             //if (i == 0 || i == round(length/2) || i == length -1) {
             std::cout << "Sending data to Ros" << std::endl;
-
-            double p = 0.0001;
-            if (i == 0 || i == length - 1)
-            {
-                p = 0.0;
-            }
 
             trajectory_msgs::JointTrajectoryPoint point;
             point.positions.resize(6);
@@ -276,6 +271,36 @@ int main(int argc, char **argv)
         ros::spinOnce();
     };
 
+    //Important 3D positions
+    MatrixXd p_home(3, 1);
+    MatrixXd p_blueCube(3, 1); //maybe aruco 4
+    MatrixXd p_redCube(3, 1);
+    MatrixXd p_greenCube(3, 1);
+    MatrixXd p_yellowCube(3, 1);
+
+    p_home << 0, 0, 1.2;
+    p_blueCube << 0.55, 0.318, 0.506; //0.613
+    p_redCube << 0,0,0;
+    p_greenCube << 0,0,0;
+    p_yellowCube << 0.949, -0.176, 0.974;
+    //0.692, 0.721, 0.032, 0.005
+    
+    //Important 3D orientations
+    MatrixXd PHI_home(3, 1);
+    MatrixXd PHI_blueCube(3, 1);
+    MatrixXd PHI_redCube(3, 1);
+    MatrixXd PHI_greenCube(3, 1);
+    MatrixXd PHI_yellowCube(3, 1);
+
+    PHI_home << 0, 0, 0;
+    PHI_blueCube << 0, -3.14, -1.311; //-1.852, -1.567, -1.311 real value
+    PHI_redCube << 0, -3.14, -1.311;
+    PHI_greenCube << 0, -3.14, -1.311;
+    PHI_yellowCube << -3.103, -0.053, 3.179; //-3.103, -0.053, 0.039 real value 
+    
+    
+
+
     // Trajectory initial, final and sampling time
     std::cout << "Setting time..." << std::endl;
     double ti = 0.0;
@@ -294,14 +319,14 @@ int main(int argc, char **argv)
     pi << fr.p.x(), fr.p.y(), fr.p.z();
     //@todo verificare il frame di riferimento corretto, l'orientamento iniziale non corrisponde.
     //Il problema potrebbe essere che non è giusto usare GetEulerZYZ oppure non stiamo guardando il giusto tf ('robot_arm_tool0' oppure 'robot_wsg50_center')
-    //verificare con rosrun tf tf_echo robot_base_footprint robot_wsg50_center
+    //verificare con rosrun tf tf_echo robot_base_footprint robot_arm_tool0
 
     //@todo se funziona portare tutto il codice nella funzione sendTrajectory per non replicarlo ad ogni pezzo di traiettoria
     double alpha, beta, gamma;
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
-    pf << 0, 0, 1.2;
-    PHI_f << 0, 0, 0;
+    pf = p_home;
+    PHI_f = PHI_home;
 
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
     ros::spinOnce();
@@ -309,20 +334,21 @@ int main(int argc, char **argv)
     pi = pf;
     PHI_i = PHI_f;
 
-    pf << 0.613, 0.318, 0.506;
+    pf = p_blueCube;
     //roll+pi/2,pitch-pi/2 rispetto a robot_arm_tool0
     //davanti al cubo blu  -0.282, -3.14, -1.311
-    PHI_f << -0.282, -3.14, -1.311;
+    PHI_f = PHI_blueCube;
     ti = 2.0;
     tf = 4.0;
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while(!isAtFinalPosition(ra,pf,PHI_f)){
-          std::cout << "In ..." << std::endl;
-    }
-    std::cout << "Out ..." << std::endl;
+    // while(!isAtFinalPosition(ra,pf,PHI_f)){
+    //     //std::cout << "In ..." << std::endl;
+    // }
+    // std::cout << "Out ..." << std::endl;
 
 
 
+    
 
     
     // std::cout << dataAcceleration << std::endl;
@@ -341,10 +367,9 @@ int main(int argc, char **argv)
     usleep(50000);
   }
 */
-    // while (ros::ok())
-    // {
-    //     ros::spinOnce();
-    //     loop_rate.sleep();
-    // }
+    while (ros::ok())
+    {
+        ros::spinOnce();
+    }
     return 0;
 }
