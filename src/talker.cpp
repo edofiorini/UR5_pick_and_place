@@ -88,6 +88,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
         cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::aruco::detectMarkers(image, dictionary, corners, ids, parameters, rejCandidates);
 
+    arucoVec = new std::vector<ArucoInfo>;
     // No aruco detected
     if (ids.size() <= 0)
         return;
@@ -97,7 +98,6 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
     // Aruco information container
-    arucoVec = new std::vector<ArucoInfo>;
     std::vector<cv::Vec3d> rvecs, tvecs;
     cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
     // draw axis for each marker
@@ -109,9 +109,23 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     }
 
     // Show results
-    //cv::imshow("out", imageCopy);
+    cv::imshow("out", imageCopy);
+    
+    char key = (char) cv::waitKey(1);
+}
 
-    //char key = (char) cv::waitKey(1);
+ArucoInfo closestCube() {
+    double minDist = 1000;
+    ArucoInfo closest = ArucoInfo();
+    
+    for (int i = 0; i<arucoVec->size(); i++) {
+        double dist = arucoVec->at(i).distance();
+        if (dist < minDist) {
+            minDist = dist;
+            closest = arucoVec->at(i);
+        }
+    }
+    return closest;
 }
 
 void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
@@ -222,7 +236,7 @@ bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
     double alpha, beta, gamma;
 
     MatrixXd error(1,1);
-    error << 0.005;
+    error << 0.001;
 
 
     KDL::Frame frameOfNow = ra.FKinematics(joints);
@@ -239,6 +253,42 @@ bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
         //abs((PHI_ofNow-PHI_f).coeff(0,0))<error.coeff(0,0) &&
         //abs((PHI_ofNow-PHI_f).coeff(1,0))<error.coeff(0,0) &&
         //abs((PHI_ofNow-PHI_f).coeff(2,0))<error.coeff(0,0))
+        return true;
+    else
+        return false;
+}
+
+
+void goHome(ros::Publisher chatter_pub) {
+    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
+
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names = {
+        "robot_arm_shoulder_pan_joint",
+        "robot_arm_shoulder_lift_joint",
+        "robot_arm_elbow_joint",
+        "robot_arm_wrist_1_joint",
+        "robot_arm_wrist_2_joint",
+        "robot_arm_wrist_3_joint"
+    };
+
+    double pos[] {0, -0.8, -1.57};
+
+    trajectory_msgs::JointTrajectoryPoint point;
+    for (int i=0;i<3;i++) {
+        point.positions.resize(1);
+        point.positions = {0,pos[i],0,0,0,0};
+        point.time_from_start = ros::Duration(i*2);
+        points.push_back(point);
+    }    
+
+    msg.points = points;
+    chatter_pub.publish(msg);
+}
+
+
+bool isAtHome(){
+    if ((1.57+joints[1]) < 0.001)
         return true;
     else
         return false;
@@ -273,13 +323,13 @@ int main(int argc, char **argv)
 
     //Important 3D positions
     MatrixXd p_home(3, 1);
-    MatrixXd p_blueCube(3, 1); //maybe aruco 4
+    MatrixXd p_blueCube(3, 1);
     MatrixXd p_redCube(3, 1);
     MatrixXd p_greenCube(3, 1);
     MatrixXd p_yellowCube(3, 1);
 
     p_home << 0, 0, 1.2;
-    p_blueCube << 0.55, 0.318, 0.506; //0.613
+    p_blueCube << 0.55, 0.318, 0.613; //0.506
     p_redCube << 0,0,0;
     p_greenCube << 0,0,0;
     p_yellowCube << 0.949, -0.176, 0.974;
@@ -298,54 +348,64 @@ int main(int argc, char **argv)
     PHI_greenCube << 0, -3.14, -1.311;
     PHI_yellowCube << -3.103, -0.053, 3.179; //-3.103, -0.053, 0.039 real value 
     
-    
-
-
-    // Trajectory initial, final and sampling time
-    std::cout << "Setting time..." << std::endl;
-    double ti = 0.0;
-    double tf = 2.0;
     double Ts = 0.1;
-
     ros::Rate loop_rate(1 / Ts);
+    
+    goHome(chatter_pub);
+    while (ros::ok() && !isAtHome()) {
+        std::cout << "joint1 " << joints[1] << " " << 1.57+joints[1] << std::endl;
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+    // ros::spinOnce();
 
+    
+   
     std::cout << "Setting points matrices..." << std::endl;
+
     MatrixXd pf(3, 1);
     MatrixXd PHI_f(3, 1);
-
     MatrixXd pi(3, 1);
     MatrixXd PHI_i(3, 1);
+
     KDL::Frame fr = ra.FKinematics(joints);
     pi << fr.p.x(), fr.p.y(), fr.p.z();
-    //@todo verificare il frame di riferimento corretto, l'orientamento iniziale non corrisponde.
-    //Il problema potrebbe essere che non è giusto usare GetEulerZYZ oppure non stiamo guardando il giusto tf ('robot_arm_tool0' oppure 'robot_wsg50_center')
-    //verificare con rosrun tf tf_echo robot_base_footprint robot_arm_tool0
-
-    //@todo se funziona portare tutto il codice nella funzione sendTrajectory per non replicarlo ad ogni pezzo di traiettoria
+   
+    //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
     double alpha, beta, gamma;
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
-    pf = p_home;
-    PHI_f = PHI_home;
 
-    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
     ros::spinOnce();
     loop_rate.sleep();
-    pi = pf;
-    PHI_i = PHI_f;
+
+    double ti = 0.0;
+    double tf = 2.0;
+  
+    pf = p_home;
+    PHI_f = PHI_home;
+    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
+        //std::cout << "In ..." << std::endl;
+    }
+
+    fr = ra.FKinematics(joints);
+    pi << fr.p.x(), fr.p.y(), fr.p.z();
+   
+    //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
+    alpha, beta, gamma;
+    fr.M.GetRPY(alpha, beta, gamma);
+    PHI_i << alpha, beta, gamma;
+
+    ros::spinOnce();
+    loop_rate.sleep();
 
     pf = p_blueCube;
-    //roll+pi/2,pitch-pi/2 rispetto a robot_arm_tool0
-    //davanti al cubo blu  -0.282, -3.14, -1.311
     PHI_f = PHI_blueCube;
-    ti = 2.0;
-    tf = 4.0;
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    // while(!isAtFinalPosition(ra,pf,PHI_f)){
-    //     //std::cout << "In ..." << std::endl;
-    // }
-    // std::cout << "Out ..." << std::endl;
-
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
+        //std::cout << "In ..." << std::endl;
+    }
 
 
     

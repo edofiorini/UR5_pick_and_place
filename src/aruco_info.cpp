@@ -7,15 +7,20 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 
+/*
+aruco 5 frontale
+*/
+
 ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec){
     this->id = id;
     this->rvec = rvec;
     this->tvec = tvec;
     //this->addToTf();
     
-    std::cout << "detected aruco: " << id << std::endl;
-    std::cout << "pos: " << rvec[0] << "," << rvec[1] << "," << rvec[2];
+    std::cout << "detected aruco: " << id << ", pos: " << rvec[0] << "," << rvec[1] << "," << rvec[2] << "\n";
 }
+
+ArucoInfo::ArucoInfo() {}
 
 int ArucoInfo::getId(){
     return id;
@@ -27,6 +32,10 @@ cv::Vec3d ArucoInfo::getRvec(){
 
 cv::Vec3d ArucoInfo::getTvec(){
     return tvec;
+}
+
+double ArucoInfo::distance() {
+    return cv::norm(tvec);
 }
 
 void ArucoInfo::addToTf() {
