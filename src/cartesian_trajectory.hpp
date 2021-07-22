@@ -1,3 +1,6 @@
+#ifndef CARTESIAN_TRAJECTORY
+#define CARTESIAN_TRAJECTORY
+
 #include <Eigen/Eigen>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -32,3 +35,5 @@ public:
 
     int get_length();
 };
+
+#endif

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#define _USE_MATH_DEFINES // For PI costants
 #include <cmath>
 #include <complex>
 #include <Eigen/Eigen>
@@ -24,7 +25,12 @@
 #include "robot_arm2.hpp"
 #include "kdl_kinematics.hpp"
 #include "cartesian_trajectory.hpp"
+#include "joint_pol_traj.hpp"
 #include "aruco_info.hpp"
+
+// PI costants
+#define PI M_PI     // pi
+#define PI2 M_PI_2  // pi/2
 
 using namespace Eigen;
 
@@ -82,7 +88,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
 
     // Aruco detection
     std::vector<int> ids;
-    std::vector<std::vector<cv::Point2f>> corners, rejCandidates;
+    std::vector< std::vector<cv::Point2f> > corners, rejCandidates;
     cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();
     cv::Ptr<cv::aruco::Dictionary> dictionary =
         cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
@@ -114,24 +120,26 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     char key = (char) cv::waitKey(1);
 }
 
-ArucoInfo closestCube() {
+ArucoInfo* closestCube(int id) {
     double minDist = 1000;
-    ArucoInfo closest = ArucoInfo();
+    ArucoInfo* closest = NULL;
     
     for (int i = 0; i<arucoVec->size(); i++) {
         double dist = arucoVec->at(i).distance();
-        if (dist < minDist) {
+        if (arucoVec->at(i).getId() == id && dist < minDist) {
             minDist = dist;
-            closest = arucoVec->at(i);
+            closest = &(arucoVec->at(i));
         }
     }
+
     return closest;
 }
 
 void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
 {
     std::cout << "Initializing trajectory..." << std::endl;
-    CartesianTrajectory *trajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
+    CartesianTrajectory *trajectory;
+    trajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
     std::cout << "Trajectory initialized!" << std::endl;
 
     int length = trajectory->get_length();
@@ -230,6 +238,50 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
     chatter_pub.publish(msg);
 }
 
+void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub){
+
+    JointPolTraj *trajectory;
+    trajectory = new JointPolTraj(pi, pf, PHI_i, PHI_f, ra, joints, 6, ti, tf, Ts);
+    MatrixXd jointPos = trajectory->getJointPos();
+    MatrixXd jointVel = trajectory->getJointVel();
+
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names = {
+        "robot_arm_shoulder_pan_joint",
+        "robot_arm_shoulder_lift_joint",
+        "robot_arm_elbow_joint",
+        "robot_arm_wrist_1_joint",
+        "robot_arm_wrist_2_joint",
+        "robot_arm_wrist_3_joint"};
+
+    std::vector<trajectory_msgs::JointTrajectoryPoint> points;
+    for (int i = 0; i<trajectory->getSamples(); i++) {
+        trajectory_msgs::JointTrajectoryPoint point;
+
+        point.positions.resize(6);
+        point.time_from_start = ros::Duration(i * Ts);
+        point.positions = {
+            jointPos.coeff(0, i),
+            jointPos.coeff(1, i),
+            jointPos.coeff(2, i),
+            jointPos.coeff(3, i),
+            jointPos.coeff(4, i),
+            jointPos.coeff(5, i)};
+        point.velocities = {
+            jointVel.coeff(0, i),
+            jointVel.coeff(1, i),
+            jointVel.coeff(2, i),
+            jointVel.coeff(3, i),
+            jointVel.coeff(4, i),
+            jointVel.coeff(5, i)};
+
+        points.push_back(point);
+    }
+
+    msg.points = points;
+    chatter_pub.publish(msg);
+}
+
 bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
     MatrixXd pOfNow(3, 1);
     MatrixXd PHI_ofNow(3, 1);
@@ -258,8 +310,7 @@ bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
         return false;
 }
 
-
-void goHome(ros::Publisher chatter_pub) {
+void goInitPos(ros::Publisher chatter_pub) {
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
 
     trajectory_msgs::JointTrajectory msg;
@@ -272,11 +323,11 @@ void goHome(ros::Publisher chatter_pub) {
         "robot_arm_wrist_3_joint"
     };
 
-    double pos[] {0, -0.8, -1.57};
+    double pos[] {0, -0.8, -PI2};
 
     trajectory_msgs::JointTrajectoryPoint point;
     for (int i=0;i<3;i++) {
-        point.positions.resize(1);
+        point.positions.resize(6);
         point.positions = {0,pos[i],0,0,0,0};
         point.time_from_start = ros::Duration(i*2);
         points.push_back(point);
@@ -288,7 +339,7 @@ void goHome(ros::Publisher chatter_pub) {
 
 
 bool isAtHome(){
-    if ((1.57+joints[1]) < 0.001)
+    if ((joints[1] + PI2) < 0.001)
         return true;
     else
         return false;
@@ -343,25 +394,25 @@ int main(int argc, char **argv)
     MatrixXd PHI_yellowCube(3, 1);
 
     PHI_home << 0, 0, 0;
-    PHI_blueCube << 0, -3.14, -1.311; //-1.852, -1.567, -1.311 real value
-    PHI_redCube << 0, -3.14, -1.311;
-    PHI_greenCube << 0, -3.14, -1.311;
+    PHI_blueCube << 0, -PI, -1.311; //-1.852, -1.567, -1.311 real value
+    PHI_redCube << 0, -PI, -1.311;
+    PHI_greenCube << 0, -PI, -1.311;
     PHI_yellowCube << -3.103, -0.053, 3.179; //-3.103, -0.053, 0.039 real value 
     
     double Ts = 0.1;
     ros::Rate loop_rate(1 / Ts);
-    
-    goHome(chatter_pub);
+
+    // Initial Position
+    std::cout << "Moving to initial configuration... " << std::endl;
+    goInitPos(chatter_pub);
     while (ros::ok() && !isAtHome()) {
-        std::cout << "joint1 " << joints[1] << " " << 1.57+joints[1] << std::endl;
+        std::cout << "joint1 " << joints[1] << " " << joints[1] + PI2 << std::endl;
         ros::spinOnce();
         loop_rate.sleep();
     }
-    // ros::spinOnce();
 
-    
-   
-    std::cout << "Setting points matrices..." << std::endl;
+    // First cube detection
+    std::cout << "Moving to first cube... " << std::endl;
 
     MatrixXd pf(3, 1);
     MatrixXd PHI_f(3, 1);
@@ -382,8 +433,26 @@ int main(int argc, char **argv)
     double ti = 0.0;
     double tf = 2.0;
   
-    pf = p_home;
-    PHI_f = PHI_home;
+    pf = p_blueCube;
+    PHI_f = PHI_blueCube;
+
+    // Use joint space trajectory to move the manipulator
+    sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
+
+    // Find the nearest front aruco (id = 5)
+    std::cout << "Aruco detection..." << std::endl;
+    int arucoId = 5;
+    ArucoInfo* arucoCube = NULL;
+    while(ros::ok() && !arucoCube){
+        ros::spinOnce();
+        loop_rate.sleep();
+        arucoCube = closestCube(arucoId);
+    }
+    arucoCube->print();
+
+    return 0;
+
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
     while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
         //std::cout << "In ..." << std::endl;

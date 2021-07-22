@@ -164,8 +164,8 @@ KDL::JntArray RobotArm::IKinematics(double X, double Y, double Z, double roll, d
 
     // std::cout<<"result ik_a " << result_a << std::endl;
 
-    // for(int idx =0;idx<6;idx++)
-    //   acc_[idx] = target_joints_acc.data[idx];
+    for(int idx =0;idx<6;idx++)
+      acc_[idx] = target_joints_acc.data[idx];
 
     return target_joints;
 }

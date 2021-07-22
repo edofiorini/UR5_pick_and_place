@@ -1,3 +1,6 @@
+#ifndef ROBOT_ARM2
+#define ROBOT_ARM2
+
 #include <ros/ros.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <trajectory_msgs/JointTrajectory.h>
@@ -20,3 +23,5 @@ public:
     control_msgs::FollowJointTrajectoryGoal armExtensionTrajectory();
     actionlib::SimpleClientGoalState getState();
 };
+
+#endif

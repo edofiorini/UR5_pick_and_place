@@ -16,11 +16,7 @@ ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec){
     this->rvec = rvec;
     this->tvec = tvec;
     //this->addToTf();
-    
-    std::cout << "detected aruco: " << id << ", pos: " << rvec[0] << "," << rvec[1] << "," << rvec[2] << "\n";
 }
-
-ArucoInfo::ArucoInfo() {}
 
 int ArucoInfo::getId(){
     return id;
@@ -38,6 +34,13 @@ double ArucoInfo::distance() {
     return cv::norm(tvec);
 }
 
+void ArucoInfo::print() {
+    std::cout << "ID: " << id
+        << ", R: " << rvec[0] << ", " << rvec[1] << ", " << rvec[2]
+        << ", t: " << tvec[0] << ", " << tvec[1] << ", " << tvec[2] << std::endl;
+}
+
+/*
 void ArucoInfo::addToTf() {
     //robot_wrist_rgbd_color_frame oppure robot_wrist_rgbd_color_optical_frame
     //@todo capire se è visibile sto frame da qualche parte
@@ -61,3 +64,4 @@ void ArucoInfo::addToTf() {
     transformStamped.header.stamp = ros::Time::now();
     tfb.sendTransform(transformStamped);
 }
+*/
