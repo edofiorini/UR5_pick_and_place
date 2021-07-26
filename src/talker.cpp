@@ -451,13 +451,14 @@ int main(int argc, char **argv)
         arucoCube = closestCube(arucoId);
     }
     arucoCube->print();
-
-    return 0;
-
-    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    pf = arucoCube->getP();
+    sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    
     while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
         //std::cout << "In ..." << std::endl;
     }
+
+    return 0;
 
     fr = ra.FKinematics(joints);
     pi << fr.p.x(), fr.p.y(), fr.p.z();

@@ -3,13 +3,21 @@
 
 #include <opencv2/aruco.hpp>
 
+#include <Eigen/Eigen>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
+#include <tf/transform_listener.h>
+
+using namespace Eigen;
+
 class ArucoInfo {
 private:
     // Fields
     int id;
     cv::Vec3d rvec;
     cv::Vec3d tvec;
-    MatrixXd p;
+    Vector3d p;
     MatrixXd phi;
 
     void computeTrasform();
@@ -23,7 +31,7 @@ public:
     int getId();
     cv::Vec3d getRvec();
     cv::Vec3d getTvec();
-    MatrixXd getP();
+    Vector3d getP();
     MatrixXd getPhi();
     
     // Methods

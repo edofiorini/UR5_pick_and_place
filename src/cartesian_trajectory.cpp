@@ -219,8 +219,7 @@ void CartesianTrajectory::EE_orientation(MatrixXd &T, MatrixXd &PHI_i, MatrixXd 
 
     CartesianTrajectory::fifth_polinomials(T, s, sd, sdd, ti, tf, qi, dqi, ddqi, qf, dqf, ddqf, Ts);
 
-    MatrixXd support1 = PHI_f - PHI_i;
-    MatrixXd l = support1 / support1.norm();
+    MatrixXd l =  support.norm() == 0 ? support : support / support.norm();
     for (int i = 0; i < length; i++)
     {
         o_tilde.col(i) = PHI_i + l * s.col(i);
