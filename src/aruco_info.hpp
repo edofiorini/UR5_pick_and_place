@@ -9,6 +9,10 @@ private:
     int id;
     cv::Vec3d rvec;
     cv::Vec3d tvec;
+    MatrixXd p;
+    MatrixXd phi;
+
+    void computeTrasform();
     // void addToTf();
 
 public:
@@ -19,7 +23,9 @@ public:
     int getId();
     cv::Vec3d getRvec();
     cv::Vec3d getTvec();
-
+    MatrixXd getP();
+    MatrixXd getPhi();
+    
     // Methods
     double distance();
     void print();

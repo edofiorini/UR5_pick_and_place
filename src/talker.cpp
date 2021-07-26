@@ -17,6 +17,7 @@
 #include "trajectory_msgs/JointTrajectory.h"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
 #include <image_transport/image_transport.h>
+#include <tf/transform_listener.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
