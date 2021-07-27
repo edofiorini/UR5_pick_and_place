@@ -74,8 +74,7 @@ double ArucoInfo::distance() {
 
 void ArucoInfo::print() {
     std::cout << "ID: " << id
-        << ", R: " << rvec[0] << ", " << rvec[1] << ", " << rvec[2]
-        << ", t: " << tvec[0] << ", " << tvec[1] << ", " << tvec[2] << std::endl;
+        << ", p: " << p[0] << ", " << p[1] << ", " << p[2] << std::endl;
 }
 
 Vector3d ArucoInfo::getP() {

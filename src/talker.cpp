@@ -106,7 +106,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
 
     // Aruco information container
     std::vector<cv::Vec3d> rvecs, tvecs;
-    cv::aruco::estimatePoseSingleMarkers(corners, 0.05, K, D, rvecs, tvecs);
+    cv::aruco::estimatePoseSingleMarkers(corners, 0.04, K, D, rvecs, tvecs);
     // draw axis for each marker
     for (int i = 0; i < ids.size(); i++)
     {
@@ -116,9 +116,9 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     }
 
     // Show results
-    cv::imshow("out", imageCopy);
+    // cv::imshow("out", imageCopy);
     
-    char key = (char) cv::waitKey(1);
+    // char key = (char) cv::waitKey(1);
 }
 
 ArucoInfo* closestCube(int id) {
@@ -382,7 +382,7 @@ int main(int argc, char **argv)
 
     p_home << 0, 0, 1.2;
     p_blueCube << 0.55, 0.318, 0.613; //0.506
-    p_redCube << 0,0,0;
+    p_redCube << 0.513, -0.473, 0.572; // collision problems
     p_greenCube << 0,0,0;
     p_yellowCube << 0.949, -0.176, 0.974;
     //0.692, 0.721, 0.032, 0.005
@@ -452,11 +452,14 @@ int main(int argc, char **argv)
     }
     arucoCube->print();
     pf = arucoCube->getP();
+
+    pf(0) -= 0.1;
+    //pf(1,0) = pf(1,0)+0.2;
+    pf(2) = pf(2)+0.05;
+
     sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
     
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
-        //std::cout << "In ..." << std::endl;
-    }
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
 
     return 0;
 
