@@ -37,6 +37,7 @@ public:
     // Methods
     double distance();
     void print();
+    void addToTf();
 };
 
 #endif

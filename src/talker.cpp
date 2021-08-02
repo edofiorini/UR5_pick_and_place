@@ -106,7 +106,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
 
     // Aruco information container
     std::vector<cv::Vec3d> rvecs, tvecs;
-    cv::aruco::estimatePoseSingleMarkers(corners, 0.04, K, D, rvecs, tvecs);
+    cv::aruco::estimatePoseSingleMarkers(corners, 0.03, K, D, rvecs, tvecs);
     // draw axis for each marker
     for (int i = 0; i < ids.size(); i++)
     {
@@ -312,6 +312,7 @@ bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f){
 }
 
 void goInitPos(ros::Publisher chatter_pub) {
+
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
 
     trajectory_msgs::JointTrajectory msg;
@@ -366,7 +367,7 @@ int main(int argc, char **argv)
 
     joint_state_sub = n.subscribe("/robot/joint_states", 1, jointsCallback);
     
-    ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 10000);
+    ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1000);
 
     while (!joints_done)
     {
@@ -453,12 +454,15 @@ int main(int argc, char **argv)
     arucoCube->print();
     pf = arucoCube->getP();
 
-    pf(0) -= 0.1;
+    //pf(0) -= 0.1;
     //pf(1,0) = pf(1,0)+0.2;
-    pf(2) = pf(2)+0.05;
+    //pf(2) += 0.03;
 
     sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    
+    //sendJointTraj(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    while(ros::ok()) {
+        ros::spinOnce();
+    }
     while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
 
     return 0;
