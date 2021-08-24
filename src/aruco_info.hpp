@@ -19,6 +19,7 @@ private:
     cv::Vec3d tvec;
     Vector3d p;
     MatrixXd phi;
+    std::string arucoFrame;
 
     void computeTrasform();
     // void addToTf();

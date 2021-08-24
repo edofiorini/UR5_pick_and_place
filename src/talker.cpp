@@ -440,30 +440,37 @@ int main(int argc, char **argv)
 
     // Use joint space trajectory to move the manipulator
     sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)) {
+        ros::spinOnce();
+    };
 
     // Find the nearest front aruco (id = 5)
     std::cout << "Aruco detection..." << std::endl;
     int arucoId = 5;
     ArucoInfo* arucoCube = NULL;
+
     while(ros::ok() && !arucoCube){
         ros::spinOnce();
         loop_rate.sleep();
         arucoCube = closestCube(arucoId);
     }
-    arucoCube->print();
     pf = arucoCube->getP();
+    arucoCube->print();
 
     //pf(0) -= 0.1;
     //pf(1,0) = pf(1,0)+0.2;
     //pf(2) += 0.03;
 
-    sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    //sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
     //sendJointTraj(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
+      
     while(ros::ok()) {
         ros::spinOnce();
     }
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
+    
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
+        ros::spinOnce();
+    }
 
     return 0;
 
@@ -482,8 +489,8 @@ int main(int argc, char **argv)
     PHI_f = PHI_blueCube;
     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
     while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
-        //std::cout << "In ..." << std::endl;
-    }
+        ros::spinOnce();
+    };
 
 
     

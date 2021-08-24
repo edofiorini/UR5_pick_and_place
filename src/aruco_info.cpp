@@ -79,6 +79,21 @@ void ArucoInfo::print() {
 }
 
 Vector3d ArucoInfo::getP() {
+    tf::TransformListener listener;
+    tf::StampedTransform transform;
+    try {
+        listener.waitForTransform("/robot_base_footprint", "/"+this->arucoFrame, ros::Time(0), ros::Duration(10.0));
+        listener.lookupTransform("/robot_base_footprint",  "/"+this->arucoFrame, ros::Time(0), transform);
+    }
+    catch (tf::TransformException &ex) {
+        ROS_ERROR("%s",ex.what());
+        ros::Duration(1.0).sleep();
+        return p;
+    }
+   
+    //transform overloads the "*" operator. You can apply the transform multipling a vector to it
+    tf::Vector3 p0 = transform.getOrigin();
+    this->p << p0.x(), p0.y(), p0.z();
     return p;
 }
 
@@ -88,7 +103,8 @@ void ArucoInfo::addToTf() {
     tf2_ros::TransformBroadcaster tfb;
     geometry_msgs::TransformStamped transformStamped;
     transformStamped.header.frame_id = "robot_wrist_rgbd_color_optical_frame";
-    transformStamped.child_frame_id = "aruco_" + std::to_string(id);
+    this->arucoFrame = "aruco_" + std::to_string(id);// + "_" + std::to_string(ros::Time::now().toSec());
+    transformStamped.child_frame_id = this->arucoFrame;
     //ROS_INFO("created frame: " +  transformStamped.child_frame_id);
     std::cout << "created frame: " << transformStamped.child_frame_id << std::endl;
     transformStamped.transform.translation.x = -tvec[0];//rotated aruco
