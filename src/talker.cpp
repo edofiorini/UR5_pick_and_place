@@ -18,6 +18,7 @@
 #include "trajectory_msgs/JointTrajectoryPoint.h"
 #include <image_transport/image_transport.h>
 #include <tf/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
@@ -41,7 +42,6 @@ bool joints_done = false;
 cv_bridge::CvImagePtr imagePtr;
 cv::Mat K(3, 3, CV_64F);
 cv::Mat D(1, 5, CV_64F);
-std::vector<ArucoInfo> *arucoVec;
 
 double joints[6];
 
@@ -67,6 +67,29 @@ void jointsCallback(const sensor_msgs::JointState &msg)
         //std::cout<<"giunto "<<joints[i]<<std::endl;
     }
     joints_done = true;
+}
+
+void addToTf(int id, cv::Vec3d rvec, cv::Vec3d tvec) {
+    //robot_wrist_rgbd_color_frame oppure robot_wrist_rgbd_color_optical_frame
+    //@todo capire se è visibile sto frame da qualche parte
+    tf2_ros::TransformBroadcaster tfb;
+    geometry_msgs::TransformStamped transformStamped;
+    transformStamped.header.frame_id = "robot_wrist_rgbd_color_optical_frame";
+    transformStamped.child_frame_id = "aruco_" + std::to_string(id);
+    //ROS_INFO("created frame: " +  transformStamped.child_frame_id);
+    std::cout << "created frame: " << transformStamped.child_frame_id << std::endl;
+    transformStamped.transform.translation.x = -tvec[0];//rotated aruco
+    transformStamped.transform.translation.y = tvec[1];
+    transformStamped.transform.translation.z = tvec[2];
+    tf2::Quaternion q;
+    q.setRPY(rvec[0], rvec[1], rvec[2]);
+    transformStamped.transform.rotation.x = q.x();
+    transformStamped.transform.rotation.y = q.y();
+    transformStamped.transform.rotation.z = q.z();
+    transformStamped.transform.rotation.w = q.w();
+    transformStamped.header.stamp = ros::Time::now();
+    tfb.sendTransform(transformStamped);
+    ros::spinOnce();
 }
 
 void imageCallback(const sensor_msgs::ImageConstPtr &msg)
@@ -95,7 +118,6 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
         cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::aruco::detectMarkers(image, dictionary, corners, ids, parameters, rejCandidates);
 
-    arucoVec = new std::vector<ArucoInfo>;
     // No aruco detected
     if (ids.size() <= 0)
         return;
@@ -111,7 +133,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     for (int i = 0; i < ids.size(); i++)
     {
         // Save aruco id, rotation and traslation
-        arucoVec->push_back(ArucoInfo(ids[i], rvecs[i], tvecs[i]));
+        addToTf(ids[i], rvecs[i], tvecs[i]);
         cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
     }
 
@@ -121,19 +143,20 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     // char key = (char) cv::waitKey(1);
 }
 
-ArucoInfo* closestCube(int id) {
-    double minDist = 1000;
-    ArucoInfo* closest = NULL;
-    
-    for (int i = 0; i<arucoVec->size(); i++) {
-        double dist = arucoVec->at(i).distance();
-        if (arucoVec->at(i).getId() == id && dist < minDist) {
-            minDist = dist;
-            closest = &(arucoVec->at(i));
-        }
-    }
+geometry_msgs::TransformStamped closestCube(int id) {
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener(tfBuffer);
 
-    return closest;
+    geometry_msgs::TransformStamped transformStamped;
+    try {
+        transformStamped = tfBuffer.lookupTransform("robot_base_footprint", "aruco_" + std::to_string(id),ros::Time(0));
+    }
+    catch (tf::TransformException &ex) {
+        
+        ros::Duration(1.0).sleep();
+        ROS_ERROR("%s",ex.what());
+    }
+    return transformStamped;
 }
 
 void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
@@ -360,6 +383,10 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     RobotArm ra(n);
 
+    double Ts = 0.1;
+    ros::Rate loop_rate(1 / Ts);
+
+
     // Vision system
     cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
     imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
@@ -372,6 +399,8 @@ int main(int argc, char **argv)
     while (!joints_done)
     {
         ros::spinOnce();
+        loop_rate.sleep();
+
     };
 
     //Important 3D positions
@@ -401,8 +430,6 @@ int main(int argc, char **argv)
     PHI_greenCube << 0, -PI, -1.311;
     PHI_yellowCube << -3.103, -0.053, 3.179; //-3.103, -0.053, 0.039 real value 
     
-    double Ts = 0.1;
-    ros::Rate loop_rate(1 / Ts);
 
     // Initial Position
     std::cout << "Moving to initial configuration... " << std::endl;
@@ -429,8 +456,8 @@ int main(int argc, char **argv)
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
 
-    ros::spinOnce();
-    loop_rate.sleep();
+    //ros::spinOnce();
+    //loop_rate.sleep();
 
     double ti = 0.0;
     double tf = 2.0;
@@ -440,30 +467,41 @@ int main(int argc, char **argv)
 
     // Use joint space trajectory to move the manipulator
     sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
+        ros::spinOnce();
+        loop_rate.sleep();
+    };
 
     // Find the nearest front aruco (id = 5)
     std::cout << "Aruco detection..." << std::endl;
-    int arucoId = 5;
-    ArucoInfo* arucoCube = NULL;
-    while(ros::ok() && !arucoCube){
+    int arucoId = 2;
+    
+    geometry_msgs::TransformStamped transformStamped;
+    while(ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) <0.001) {
+        transformStamped = closestCube(arucoId);
         ros::spinOnce();
         loop_rate.sleep();
-        arucoCube = closestCube(arucoId);
     }
-    arucoCube->print();
-    pf = arucoCube->getP();
-
+    pf << transformStamped.transform.translation.x,transformStamped.transform.translation.y,transformStamped.transform.translation.z;
+    
     //pf(0) -= 0.1;
     //pf(1,0) = pf(1,0)+0.2;
     //pf(2) += 0.03;
 
     sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
     //sendJointTraj(p_blueCube, pf, PHI_blueCube, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while(ros::ok()) {
+    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
         ros::spinOnce();
-    }
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f));
+        loop_rate.sleep();
+    };
+
+
+
+
+
+
+
+
 
     return 0;
 

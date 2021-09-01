@@ -20,8 +20,7 @@ private:
     Vector3d p;
     MatrixXd phi;
 
-    void computeTrasform();
-    // void addToTf();
+    void addToTf();
 
 public:
     // Constructor
@@ -37,7 +36,8 @@ public:
     // Methods
     double distance();
     void print();
-    void addToTf();
+    //void addToTf();
+    //void computeTrasform();
 };
 
 #endif

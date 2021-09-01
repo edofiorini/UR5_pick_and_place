@@ -24,37 +24,6 @@ ArucoInfo::ArucoInfo(int id, cv::Vec3d rvec, cv::Vec3d tvec) {
     this->rvec = rvec;
     this->tvec = tvec;
     this->addToTf();
-    //this->computeTrasform();
-}
-
-void ArucoInfo::computeTrasform() {
-    
- //p0 = d01+R01*p1
-    //d01 tf tra base e camera, traslazione
-    //r01 tf tra base e camera, RPY da trasformare in matrice di rotazione
-    //p1 = tvec
-
-    tf::TransformListener listener;
-    tf::StampedTransform transform;
-    try {
-        listener.waitForTransform("/robot_base_footprint", "/robot_wrist_rgbd_color_optical_frame", ros::Time(0), ros::Duration(10.0));
-        listener.lookupTransform("/robot_base_footprint", "/robot_wrist_rgbd_color_optical_frame", ros::Time(0), transform);
-    }
-    catch (tf::TransformException &ex) {
-        ROS_ERROR("%s",ex.what());
-        ros::Duration(1.0).sleep();
-        return;
-    }
-    //dovrebbe essere la rotation matrix
-    //tf::Matrix3x3 rotation = transform.getBasis();
-
-    //dovrebbe essere la traslazione tra i frame
-    //tf::Vector3 translation = transform.getOrigin();  
-
-    //transform overloads the "*" operator. You can apply the transform multipling a vector to it
-    tf::Vector3 p1 = tf::Vector3(this->tvec[0],this->tvec[1],this->tvec[2]);
-    tf::Vector3 p0 = transform*p1;
-    this->p << p0.x(), p0.y(), p0.z();
 }
 
 int ArucoInfo::getId(){
@@ -103,5 +72,5 @@ void ArucoInfo::addToTf() {
     transformStamped.header.stamp = ros::Time::now();
     tfb.sendTransform(transformStamped);
     ros::spinOnce();
-
 }
+
