@@ -47,7 +47,10 @@ double joints[6];
 
 // Topic
 ros::Publisher dataPub;
-ros::Subscriber imageSub, cameraSub, joint_state_sub;
+ros::Subscriber imageSub, cameraSub, joint_state_sub; 
+tf2_ros::Buffer tfBuffer;
+
+
 
 
 void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
@@ -143,10 +146,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     // char key = (char) cv::waitKey(1);
 }
 
-geometry_msgs::TransformStamped closestCube(int id) {
-    tf2_ros::Buffer tfBuffer;
-    tf2_ros::TransformListener tfListener(tfBuffer);
-
+geometry_msgs::TransformStamped getArucoTransformStamped(int id) {
     geometry_msgs::TransformStamped transformStamped;
     try {
         transformStamped = tfBuffer.lookupTransform("robot_base_footprint", "aruco_" + std::to_string(id),ros::Time(0));
@@ -386,15 +386,16 @@ int main(int argc, char **argv)
     double Ts = 0.1;
     ros::Rate loop_rate(1 / Ts);
 
-
     // Vision system
     cameraSub = n.subscribe("/wrist_rgbd/color/camera_info", 1000, cameraCallback);
     imageSub = n.subscribe("/wrist_rgbd/color/image_raw", 1000, imageCallback);
-    // dataPub = n.advertise<rvc::vision>("rvc_vision", 50000);
-
+    
     joint_state_sub = n.subscribe("/robot/joint_states", 1, jointsCallback);
     
     ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1000);
+    
+    //Buffer for lookupTransform, computation of aruco relative to robot_base_footprint
+    tf2_ros::TransformListener tfListener(tfBuffer);
 
     while (!joints_done)
     {
@@ -430,8 +431,22 @@ int main(int argc, char **argv)
     PHI_greenCube << 0, -PI, -1.311;
     PHI_yellowCube << -3.103, -0.053, 3.179; //-3.103, -0.053, 0.039 real value 
     
+    //Aruco id for each cube
+    int blueCubeAruco=0;
+    int greenCubeAruco=2;
+    //move to cube detection point and look at terminal to spot the missing ids
+    int yellowCubeAruco;
+    int redCubeAruco;
 
-    // Initial Position
+    //Support matrices for trajectory computation
+    MatrixXd pf(3, 1);
+    MatrixXd PHI_f(3, 1);
+    MatrixXd pi(3, 1);
+    MatrixXd PHI_i(3, 1);
+
+
+
+    // Go to Initial Position = Standing position
     std::cout << "Moving to initial configuration... " << std::endl;
     goInitPos(chatter_pub);
     while (ros::ok() && !isAtHome()) {
@@ -441,13 +456,9 @@ int main(int argc, char **argv)
     }
 
     // First cube detection
-    std::cout << "Moving to first cube... " << std::endl;
+    std::cout << "Moving to first cube detection point... " << std::endl;
 
-    MatrixXd pf(3, 1);
-    MatrixXd PHI_f(3, 1);
-    MatrixXd pi(3, 1);
-    MatrixXd PHI_i(3, 1);
-
+  
     KDL::Frame fr = ra.FKinematics(joints);
     pi << fr.p.x(), fr.p.y(), fr.p.z();
    
@@ -455,9 +466,6 @@ int main(int argc, char **argv)
     double alpha, beta, gamma;
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
-
-    //ros::spinOnce();
-    //loop_rate.sleep();
 
     double ti = 0.0;
     double tf = 2.0;
@@ -472,18 +480,23 @@ int main(int argc, char **argv)
         loop_rate.sleep();
     };
 
-    // Find the nearest front aruco (id = 5)
     std::cout << "Aruco detection..." << std::endl;
-    int arucoId = 2;
+    int arucoId = blueCubeAruco;
     
     geometry_msgs::TransformStamped transformStamped;
+    
+    //check to see if transformStamped is initialized
     while(ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) <0.001) {
-        transformStamped = closestCube(arucoId);
+        transformStamped = getArucoTransformStamped(arucoId);
         ros::spinOnce();
         loop_rate.sleep();
     }
+
     pf << transformStamped.transform.translation.x,transformStamped.transform.translation.y,transformStamped.transform.translation.z;
     
+
+    // HERE DO OPERATION TO NOT CRASH WITH CUBE
+
     //pf(0) -= 0.1;
     //pf(1,0) = pf(1,0)+0.2;
     //pf(2) += 0.03;
@@ -496,53 +509,8 @@ int main(int argc, char **argv)
     };
 
 
-
-
-
-
-
-
-
     return 0;
 
-    fr = ra.FKinematics(joints);
-    pi << fr.p.x(), fr.p.y(), fr.p.z();
-   
-    //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
-    alpha, beta, gamma;
-    fr.M.GetRPY(alpha, beta, gamma);
-    PHI_i << alpha, beta, gamma;
-
-    ros::spinOnce();
-    loop_rate.sleep();
-
-    pf = p_blueCube;
-    PHI_f = PHI_blueCube;
-    sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while(ros::ok() && !isAtFinalPosition(ra,pf,PHI_f)){
-        //std::cout << "In ..." << std::endl;
-    }
-
-
-    
-
-    
-    // std::cout << dataAcceleration << std::endl;
-
-    /*
-  ros::AsyncSpinner spinner(2);
-
-  InitialPose arm;
-
-  spinner.start();
-  // Start the trajectory
-  arm.startTrajectory(arm.armExtensionTrajectory());
-  // Wait for trajectory completion
-  while(!arm.getState().isDone() && ros::ok())
-  {
-    usleep(50000);
-  }
-*/
     while (ros::ok())
     {
         ros::spinOnce();
