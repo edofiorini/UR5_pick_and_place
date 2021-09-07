@@ -78,7 +78,7 @@ void addToTf(int id, cv::Vec3d rvec, cv::Vec3d tvec)
     transformStamped.header.frame_id = "robot_wrist_rgbd_color_optical_frame";
     transformStamped.child_frame_id = "aruco_" + std::to_string(id);
     //ROS_INFO("created frame: " +  transformStamped.child_frame_id);
-    std::cout << "created frame: " << transformStamped.child_frame_id << std::endl;
+    //std::cout << "created frame: " << transformStamped.child_frame_id << std::endl;
     transformStamped.transform.translation.x = -tvec[0]; //rotated aruco
     transformStamped.transform.translation.y = tvec[1];
     transformStamped.transform.translation.z = tvec[2];
@@ -124,7 +124,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
         return;
 
     // At least one marker has been detected
-    ROS_INFO("Cubes detected!");
+    //ROS_INFO("Cubes detected!");
     cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
 
     // Aruco information container
@@ -139,9 +139,9 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
     }
 
     // Show results
-    // cv::imshow("out", imageCopy);
+    //cv::imshow("out", imageCopy);
 
-    // char key = (char) cv::waitKey(1);
+    //char key = (char) cv::waitKey(1);
 }
 
 geometry_msgs::TransformStamped getArucoTransformStamped(int id)
@@ -186,7 +186,7 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
         double vel_[6];
         double acc_[6];
 
-        std::cout
+        /*std::cout
             << "\npoints "
             << trajectory->dataPosition.coeff(0, i)
             << " "
@@ -200,7 +200,7 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
             << " "
             << trajectory->dataPosition.coeff(5, i)
             << std::endl;
-
+        */
         target_joints = ra.IKinematics(
             trajectory->dataPosition.coeff(0, i),
             trajectory->dataPosition.coeff(1, i),
@@ -229,7 +229,7 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
         if (check)
         {
             //if (i == 0 || i == round(length/2) || i == length -1) {
-            std::cout << "Sending data to Ros" << std::endl;
+            //std::cout << "Sending data to Ros" << std::endl;
 
             trajectory_msgs::JointTrajectoryPoint point;
             point.positions.resize(6);
@@ -366,12 +366,76 @@ void goInitPos(ros::Publisher chatter_pub)
     chatter_pub.publish(msg);
 }
 
-bool isAtHome()
+bool isAtVerticalPose()
 {
     if ((joints[1] + PI2) < 0.001)
         return true;
     else
         return false;
+}
+
+void pickAndPlaceSingleObject(
+    int arucoId, MatrixXd detectionP, MatrixXd detectionPHI, double marginX, double marginY, double marginZ, MatrixXd finalPHI,
+    ros::Rate loop_rate, ros::Publisher chatter_pub, RobotArm ra, double Ts)
+{
+    //Support matrices for trajectory computation
+    MatrixXd pf(3, 1);
+    MatrixXd PHI_f(3, 1);
+    MatrixXd pi(3, 1);
+    MatrixXd PHI_i(3, 1);
+
+    // First cube detection
+    std::cout << "Moving to detection point... " << std::endl;
+
+    KDL::Frame fr = ra.FKinematics(joints);
+    pi << fr.p.x(), fr.p.y(), fr.p.z();
+
+    //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
+    double alpha, beta, gamma;
+    fr.M.GetRPY(alpha, beta, gamma);
+    PHI_i << alpha, beta, gamma;
+
+    double ti = 0.0;
+    double tf = 2.0;
+
+    pf = detectionP;
+    PHI_f = detectionPHI;
+
+    // Use joint space trajectory to move the manipulator
+    sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
+    while (ros::ok() && !isAtFinalPosition(ra, pf, PHI_f))
+    {
+        ros::spinOnce();
+        loop_rate.sleep();
+    };
+
+    std::cout << "Aruco detection..." << std::endl;
+
+    geometry_msgs::TransformStamped transformStamped;
+
+    //check to see if transformStamped is initialized, wait 1 seconds for be sure to obatin the correct transformStamped
+    ros::Duration(1).sleep();
+    while (ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) < 0.001)
+    {
+        transformStamped = getArucoTransformStamped(arucoId);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+
+    pf << transformStamped.transform.translation.x, transformStamped.transform.translation.y, transformStamped.transform.translation.z;
+
+    std::cout << "Aruco detected..." << std::endl;
+
+    pf(0) += marginX;
+    pf(1) += marginY;
+    pf(2) += marginZ;
+
+    sendTrajectory(detectionP, pf, detectionPHI, finalPHI, ti, tf, Ts, ra, chatter_pub);
+    while (ros::ok() && !isAtFinalPosition(ra, pf, finalPHI))
+    {
+        ros::spinOnce();
+        loop_rate.sleep();
+    };
 }
 
 /**
@@ -409,26 +473,30 @@ int main(int argc, char **argv)
     };
 
     //Important 3D positions
+    MatrixXd p_vertical_pose(3, 1);
     MatrixXd p_home(3, 1);
     MatrixXd p_blueCube(3, 1);
     MatrixXd p_redCube(3, 1);
     MatrixXd p_greenCube(3, 1);
     MatrixXd p_yellowCube(3, 1);
 
-    p_home << 0, 0, 1.2;
+    p_vertical_pose << 0, 0, 1.2;
+    p_home << -0.629, -0.196, 0.511;
     p_blueCube << 0.65, 0.318, 0.613;
     p_greenCube << 0.65, 0.218, 0.613;
     p_redCube << 0.65, -0.473, 0.613;
-    p_yellowCube << 0.785, -0.158, 1.186;
+    p_yellowCube << 0.739, -0.166, 0.727;
 
     //Important 3D orientations
+    MatrixXd PHI_vertical_pose(3, 1);
     MatrixXd PHI_home(3, 1);
     MatrixXd PHI_blueCube(3, 1);
     MatrixXd PHI_redCube(3, 1);
     MatrixXd PHI_greenCube(3, 1);
     MatrixXd PHI_yellowCube(3, 1);
 
-    PHI_home << 0, 0, 0;
+    PHI_vertical_pose << 0, 0, 0;
+    PHI_home <<  0, -PI, -PI2;
     PHI_blueCube << 0, -PI, -1.311;
     PHI_redCube << 0, -PI, -1.311;
     PHI_greenCube << 0, -PI, -1.311;
@@ -443,81 +511,30 @@ int main(int argc, char **argv)
     int yellowCubeArucoId = 5;
     int redCubeArucoId = 4;
 
-    //Support matrices for trajectory computation
-    MatrixXd pf(3, 1);
-    MatrixXd PHI_f(3, 1);
-    MatrixXd pi(3, 1);
-    MatrixXd PHI_i(3, 1);
+    // Margin for not crashing with blue and green cube
 
-    int arucoId;
+    double marginX = -0.3;
+    double marginY = 0;
+    double marginZ = 0.05;
 
-    // Go to Initial Position = Standing position
-    std::cout << "Moving to initial configuration... " << std::endl;
+    //Margin for not crashing with yellow cube
+    //marginX = -0.2;
+    //marginY = 0;
+    //marginZ = 0.2;
+
+    std::cout << "Moving to vertical configuration... " << std::endl;
     goInitPos(chatter_pub);
-    while (ros::ok() && !isAtHome())
+    while (ros::ok() && !isAtVerticalPose())
     {
         //std::cout << "joint1 " << joints[1] << " " << joints[1] + PI2 << std::endl;
         ros::spinOnce();
         loop_rate.sleep();
     }
-
-    // First cube detection
-    std::cout << "Moving to cube detection point... " << std::endl;
-
-    KDL::Frame fr = ra.FKinematics(joints);
-    pi << fr.p.x(), fr.p.y(), fr.p.z();
-
-    //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
-    double alpha, beta, gamma;
-    fr.M.GetRPY(alpha, beta, gamma);
-    PHI_i << alpha, beta, gamma;
-
-    double ti = 0.0;
-    double tf = 2.0;
-
-    pf = p_blueCube;
-    PHI_f = PHI_blueCube;
-
-    // Use joint space trajectory to move the manipulator
-    sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    while (ros::ok() && !isAtFinalPosition(ra, pf, PHI_f))
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    };
-
-    std::cout << "Aruco detection..." << std::endl;
-    arucoId = blueCubeArucoId;
-
-    geometry_msgs::TransformStamped transformStamped;
-
-    //check to see if transformStamped is initialized
-    while (ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) < 0.001)
-    {
-        transformStamped = getArucoTransformStamped(arucoId);
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
+    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, chatter_pub, ra, 0.1);
+    
 
 
-    pf << transformStamped.transform.translation.x, transformStamped.transform.translation.y, transformStamped.transform.translation.z;
-
-    std::cout << "Aruco detected..." << pf << std::endl;
-
-    // Margin for not crashing with blue cube
-
-    pf(0) -= 0.3;
-    pf(2) += 0.05;
-
-
-    std::cout << "Aruco detected..." << pf(0) << std::endl;
-
-    sendTrajectory(p_blueCube, pf, PHI_blueCube, PHI_parallel, ti, tf, Ts, ra, chatter_pub);
-    while (ros::ok() && !isAtFinalPosition(ra, pf, PHI_parallel))
-    {   
-        ros::spinOnce();
-        loop_rate.sleep();
-    };
+    //finished=pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, chatter_pub, ra, 0.1);
 
     while (ros::ok())
     {
