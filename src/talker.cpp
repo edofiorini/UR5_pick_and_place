@@ -30,6 +30,10 @@
 #include "joint_pol_traj.hpp"
 #include "aruco_info.hpp"
 
+#include <ros/ros.h>
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib/client/terminal_state.h>
+
 // PI costants
 #define PI M_PI    // pi
 #define PI2 M_PI_2 // pi/2
@@ -50,7 +54,31 @@ ros::Publisher dataPub;
 ros::Subscriber imageSub, cameraSub, joint_state_sub;
 tf2_ros::Buffer tfBuffer;
 
-bool robotAlreadyMoving = false;
+//for trajectory server 
+typedef actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> arm_control_client;
+typedef boost::shared_ptr< arm_control_client>  arm_control_client_Ptr;
+arm_control_client_Ptr ArmClient;
+
+void createArmClient(arm_control_client_Ptr& actionClient)
+{
+  ROS_INFO("Creating action client to arm controller ...");
+
+  actionClient.reset( new arm_control_client("/robot/arm/pos_traj_controller/follow_joint_trajectory") );
+
+  int iterations = 0, max_iterations = 3;
+  // Wait for arm controller action server to come up
+  while( !actionClient->waitForServer(ros::Duration(2.0)) && ros::ok() && iterations < max_iterations )
+  {
+    ROS_DEBUG("Waiting for the arm_controller_action server to come up");
+    ++iterations;
+  }
+
+  if ( iterations == max_iterations )
+    throw std::runtime_error("Error in createArmClient: arm controller action server not available");
+}
+
+
+
 
 void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
 {
@@ -162,7 +190,7 @@ geometry_msgs::TransformStamped getArucoTransformStamped(int id)
     return transformStamped;
 }
 
-void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
+void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra)
 {
     std::cout << "Initializing operational space trajectory..." << std::endl;
     CartesianTrajectory *trajectory;
@@ -174,8 +202,8 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
     KDL::JntArray target_joints;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
 
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names = {
+    control_msgs::FollowJointTrajectoryGoal goal;
+    goal.trajectory.joint_names = {
         "robot_arm_shoulder_pan_joint",
         "robot_arm_shoulder_lift_joint",
         "robot_arm_elbow_joint",
@@ -261,11 +289,12 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
             previous_vel_[j] = vel_[j];
     }
 
-    msg.points = points;
-    chatter_pub.publish(msg);
+    goal.trajectory.points = points;
+
+    ArmClient->sendGoalAndWait(goal);
 }
 
-void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra, ros::Publisher chatter_pub)
+void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra)
 {
     std::cout << "Initializing joint space trajectory..." << std::endl;
     JointPolTraj *trajectory;
@@ -273,8 +302,8 @@ void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, dou
     MatrixXd jointPos = trajectory->getJointPos();
     MatrixXd jointVel = trajectory->getJointVel();
 
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names = {
+    control_msgs::FollowJointTrajectoryGoal goal;
+    goal.trajectory.joint_names = {
         "robot_arm_shoulder_pan_joint",
         "robot_arm_shoulder_lift_joint",
         "robot_arm_elbow_joint",
@@ -308,45 +337,16 @@ void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, dou
         points.push_back(point);
     }
 
-    msg.points = points;
-    chatter_pub.publish(msg);
+    goal.trajectory.points = points;
+    ArmClient->sendGoalAndWait(goal);
 }
 
-bool isAtFinalPosition(RobotArm ra, MatrixXd pf, MatrixXd PHI_f)
+control_msgs::FollowJointTrajectoryGoal getVerticalGoal()
 {
-    MatrixXd pOfNow(3, 1);
-    MatrixXd PHI_ofNow(3, 1);
-    double alpha, beta, gamma;
-
-    MatrixXd error(1, 1);
-    error << 0.001;
-
-    KDL::Frame frameOfNow = ra.FKinematics(joints);
-    pOfNow << frameOfNow.p.x(), frameOfNow.p.y(), frameOfNow.p.z();
-    frameOfNow.M.GetRPY(alpha, beta, gamma);
-
-    PHI_ofNow << alpha, beta, gamma;
-
-    //std::cout << pOfNow << "  -  " << pf << std::endl;
-
-    if (abs((pOfNow - pf).coeff(0, 0)) < error.coeff(0, 0) &&
-        abs((pOfNow - pf).coeff(1, 0)) < error.coeff(0, 0) &&
-        abs((pOfNow - pf).coeff(2, 0)) < error.coeff(0, 0))
-        //abs((PHI_ofNow-PHI_f).coeff(0,0))<error.coeff(0,0) &&
-        //abs((PHI_ofNow-PHI_f).coeff(1,0))<error.coeff(0,0) &&
-        //abs((PHI_ofNow-PHI_f).coeff(2,0))<error.coeff(0,0))
-        return true;
-    else
-        return false;
-}
-
-void goInitPos(ros::Publisher chatter_pub)
-{
-
+    control_msgs::FollowJointTrajectoryGoal goal;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
 
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names = {
+    goal.trajectory.joint_names = {
         "robot_arm_shoulder_pan_joint",
         "robot_arm_shoulder_lift_joint",
         "robot_arm_elbow_joint",
@@ -365,30 +365,16 @@ void goInitPos(ros::Publisher chatter_pub)
         points.push_back(point);
     }
 
-    msg.points = points;
-    chatter_pub.publish(msg);
-}
-
-bool isAtVerticalPose()
-{
-    if ((joints[1] + PI2) < 0.001)
-        return true;
-    else
-        return false;
+    goal.trajectory.points = points;
+    return goal;
+    
 }
 
 void pickAndPlaceSingleObject(
     int arucoId, MatrixXd detectionP, MatrixXd detectionPHI, double marginX, double marginY, double marginZ, MatrixXd finalPHI,
-    ros::Rate loop_rate, ros::Publisher chatter_pub, RobotArm ra, double Ts, bool useJointTraj, int startTime)
+    ros::Rate loop_rate, RobotArm ra, double Ts, bool useJointTraj, int startTime)
 {
-    // while (robotAlreadyMoving)
-    // {
-    //     ros::spinOnce();
-    //     loop_rate.sleep();
-    // }
-
-    // robotAlreadyMoving = true;
-
+   
     //Support matrices for trajectory computation
     MatrixXd pf(3, 1);
     MatrixXd PHI_f(3, 1);
@@ -401,13 +387,12 @@ void pickAndPlaceSingleObject(
 
     PHI_home << 0, -PI, -PI2;
 
-    
     double ti = 0.0;
     double tf = 4.0;
     double alpha, beta, gamma;
 
     //Moving to home
-    // std::cout << "Moving to home... " << std::endl;
+    std::cout << "Moving to home... " << std::endl;
     KDL::Frame fr = ra.FKinematics(joints);
     pi << fr.p.x(), fr.p.y(), fr.p.z();
     fr.M.GetRPY(alpha, beta, gamma);
@@ -416,22 +401,11 @@ void pickAndPlaceSingleObject(
     pf = p_home;
     PHI_f = PHI_home;
 
-    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime, startTime+4, Ts, ra, chatter_pub);
-    while (ros::ok() && !isAtFinalPosition(ra, pf, PHI_f))
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    };
+    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime, startTime + 4, Ts, ra);
 
     //First cube detection
     std::cout << "Moving to detection point... " << std::endl;
 
-    // // fr = ra.FKinematics(joints);
-    // // pi << fr.p.x(), fr.p.y(), fr.p.z();
-
-    // //rosrun tf tf_echo robot_base_footprint robot_arm_tool0
-    // fr.M.GetRPY(alpha, beta, gamma);
-    // // PHI_i << alpha, beta, gamma;
     pi = p_home;
     PHI_i = PHI_home;
 
@@ -439,25 +413,14 @@ void pickAndPlaceSingleObject(
     PHI_f = detectionPHI;
 
     // Use joint space trajectory to move the manipulator
-    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime+4, startTime+8, Ts, ra, chatter_pub);
-
-    // if (useJointTraj)
-    //     sendJointTraj(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-    // else
-    //     sendTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts, ra, chatter_pub);
-
-    while (ros::ok() && !isAtFinalPosition(ra, pf, PHI_f))
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    };
+    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime + 4, startTime + 8, Ts, ra);
 
     std::cout << "Aruco detection..." << std::endl;
 
     geometry_msgs::TransformStamped transformStamped;
 
     //check to see if transformStamped is initialized, wait 1 seconds for be sure to obatin the correct transformStamped
-    ros::Duration(1).sleep();
+    //ros::Duration(1).sleep();
     while (ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) < 0.001)
     {
         transformStamped = getArucoTransformStamped(arucoId);
@@ -473,14 +436,7 @@ void pickAndPlaceSingleObject(
     pf(1) += marginY;
     pf(2) += marginZ;
 
-    sendTrajectory(detectionP, pf, detectionPHI, finalPHI, startTime+8, startTime+10, Ts, ra, chatter_pub);
-    while (ros::ok() && !isAtFinalPosition(ra, pf, finalPHI))
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    };
-
-    //robotAlreadyMoving = false;
+    sendTrajectory(detectionP, pf, detectionPHI, finalPHI, startTime + 8, startTime + 10, Ts, ra);
 }
 
 /**
@@ -506,7 +462,7 @@ int main(int argc, char **argv)
 
     joint_state_sub = n.subscribe("/robot/joint_states", 1, jointsCallback);
 
-    ros::Publisher chatter_pub = n.advertise<trajectory_msgs::JointTrajectory>("/robot/arm/pos_traj_controller/command", 1000);
+    createArmClient(ArmClient);
 
     //Buffer for lookupTransform, computation of aruco relative to robot_base_footprint
     tf2_ros::TransformListener tfListener(tfBuffer);
@@ -560,26 +516,20 @@ int main(int argc, char **argv)
     double marginZ = 0.08;
 
     std::cout << "Moving to vertical configuration... " << std::endl;
-    goInitPos(chatter_pub);
-    while (ros::ok() && !isAtVerticalPose())
-    {
-        //std::cout << "joint1 " << joints[1] << " " << joints[1] + PI2 << std::endl;
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
+    
+    control_msgs::FollowJointTrajectoryGoal goal=getVerticalGoal();
+    ArmClient->sendGoalAndWait(goal);//TODO spostare in getVerticalGoal
+    //TODO, sistemare posizione yellow e blue. Provare a togliere o cambiare la home    
+//    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, true, 0);
 
-    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, chatter_pub, ra, 0.1, true,0);
-    ros::Duration(8).sleep();
+    pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, false, 0);
 
-    pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, chatter_pub, ra, 0.1, false,15);
-
-    //Margin for not crashing with yellow cube
+    // Margin for not crashing with yellow cube
     marginX = -0.2;
     marginY = 0;
     marginZ = 0.4;
-    ros::Duration(8).sleep();
 
-    pickAndPlaceSingleObject(yellowCubeArucoId, p_yellowCube, PHI_yellowCube, marginX, marginY, marginZ, PHI_yellowCube, loop_rate, chatter_pub, ra, 0.1, false,30);
+    pickAndPlaceSingleObject(yellowCubeArucoId, p_yellowCube, PHI_yellowCube, marginX, marginY, marginZ, PHI_yellowCube, loop_rate, ra, 0.1, false, 0);
 
     while (ros::ok())
     {
