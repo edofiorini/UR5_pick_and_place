@@ -341,7 +341,7 @@ void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, dou
     ArmClient->sendGoalAndWait(goal);
 }
 
-control_msgs::FollowJointTrajectoryGoal getVerticalGoal()
+void getVerticalGoal()
 {
     control_msgs::FollowJointTrajectoryGoal goal;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
@@ -366,8 +366,31 @@ control_msgs::FollowJointTrajectoryGoal getVerticalGoal()
     }
 
     goal.trajectory.points = points;
-    return goal;
-    
+    ArmClient->sendGoalAndWait(goal);
+}
+
+void goHome(double Ts,RobotArm ra) {
+    MatrixXd p_home(3, 1);
+    MatrixXd PHI_home(3, 1);
+    MatrixXd pi(3, 1);
+    MatrixXd PHI_i(3, 1);
+
+    p_home << 0.077, -0.161, 1.123;
+
+    PHI_home << 0, -PI, -PI2;
+
+    double ti = 0.0;
+    double tf = 4.0;
+    double alpha, beta, gamma;
+
+    //Moving to home
+    std::cout << "Moving to home... " << std::endl;
+    KDL::Frame fr = ra.FKinematics(joints);
+    pi << fr.p.x(), fr.p.y(), fr.p.z();
+    fr.M.GetRPY(alpha, beta, gamma);
+    PHI_i << alpha, beta, gamma;
+
+    sendTrajectory(pi, p_home, PHI_i, PHI_home, ti, tf, Ts, ra);
 }
 
 void pickAndPlaceSingleObject(
@@ -482,10 +505,11 @@ int main(int argc, char **argv)
     MatrixXd p_yellowCube(3, 1);
 
     p_vertical_pose << 0, 0, 1.2;
-    p_blueCube << 0.65, 0.318, 0.613;
+    p_blueCube << 0.80, 0.318, 0.750;
     p_greenCube << 0.65, 0.218, 0.613;
     p_redCube << 0.65, -0.473, 0.613;
     p_yellowCube << 0.739, -0.166, 0.727;
+    p_home << 0.077, -0.161, 1.123;
 
     //Important 3D orientations
     MatrixXd PHI_vertical_pose(3, 1);
@@ -495,7 +519,7 @@ int main(int argc, char **argv)
     MatrixXd PHI_yellowCube(3, 1);
 
     PHI_vertical_pose << 0, 0, 0;
-    PHI_blueCube << 0, -PI, -1.311;
+    PHI_blueCube << 0, -PI, -0.7;
     PHI_redCube << 0, -PI, -1.311;
     PHI_greenCube << 0, -PI, -1.311;
     PHI_yellowCube << 0, -PI, -0.7;
@@ -511,21 +535,25 @@ int main(int argc, char **argv)
 
     // Margin for not crashing with blue and green cube
 
-    double marginX = -0.3;
+    double marginX = 0;
     double marginY = 0;
-    double marginZ = 0.08;
+    double marginZ = 0.4;
 
     std::cout << "Moving to vertical configuration... " << std::endl;
     
-    control_msgs::FollowJointTrajectoryGoal goal=getVerticalGoal();
-    ArmClient->sendGoalAndWait(goal);//TODO spostare in getVerticalGoal
-    //TODO, sistemare posizione yellow e blue. Provare a togliere o cambiare la home    
-//    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, true, 0);
+    //TODO, sistemare posizione yellow e blue. Provare a togliere o cambiare la home
+    getVerticalGoal();   
+    goHome(Ts, ra);
+    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, true, 0);
+
+    marginX = -0.3;
+    marginY = 0;
+    marginZ = 0.08;
 
     pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, false, 0);
 
     // Margin for not crashing with yellow cube
-    marginX = -0.2;
+    marginX = 0;
     marginY = 0;
     marginZ = 0.4;
 
