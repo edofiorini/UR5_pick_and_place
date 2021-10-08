@@ -7,7 +7,7 @@
 #include <Eigen/Eigenvalues>
 
 using namespace Eigen;
-
+//CLASS TO BUILD CARTESIAN TRAJECTORY
 class CartesianTrajectory
 {
 private:

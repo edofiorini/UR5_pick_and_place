@@ -6,7 +6,7 @@
 #include "kdl_kinematics.hpp"
 
 using namespace Eigen;
-
+//CLASS TO BUILD JOINT TRAJECTORY
 class JointPolTraj {
 private:
     // Trajectory data

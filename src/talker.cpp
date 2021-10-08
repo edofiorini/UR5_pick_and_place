@@ -19,16 +19,15 @@
 #include <image_transport/image_transport.h>
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/aruco.hpp>
 
-#include "robot_arm2.hpp"
 #include "kdl_kinematics.hpp"
 #include "cartesian_trajectory.hpp"
 #include "joint_pol_traj.hpp"
-#include "aruco_info.hpp"
 
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
@@ -40,6 +39,7 @@
 
 using namespace Eigen;
 
+//variable to check if we read the actual joint position
 bool joints_done = false;
 
 // Message data
@@ -47,18 +47,20 @@ cv_bridge::CvImagePtr imagePtr;
 cv::Mat K(3, 3, CV_64F);
 cv::Mat D(1, 5, CV_64F);
 
+//contains the actual joint position
 double joints[6];
 
-// Topic
+// Topics
 ros::Publisher dataPub;
 ros::Subscriber imageSub, cameraSub, joint_state_sub;
 tf2_ros::Buffer tfBuffer;
 
-//for trajectory server 
+//action client variable for connecting to trajectory action server
 typedef actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> arm_control_client;
 typedef boost::shared_ptr< arm_control_client>  arm_control_client_Ptr;
 arm_control_client_Ptr ArmClient;
 
+//create client for sending trajectory
 void createArmClient(arm_control_client_Ptr& actionClient)
 {
   ROS_INFO("Creating action client to arm controller ...");
@@ -77,9 +79,7 @@ void createArmClient(arm_control_client_Ptr& actionClient)
     throw std::runtime_error("Error in createArmClient: arm controller action server not available");
 }
 
-
-
-
+//callback get intrinsic parameters of the camera
 void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
 {
     // Retrive camera matrix
@@ -88,21 +88,20 @@ void cameraCallback(const sensor_msgs::CameraInfoConstPtr &msg)
             K.at<double>(i, j) = msg->K[i * 3 + j];
 }
 
+//callback on joint state to keep saved the actual position of the joints
 void jointsCallback(const sensor_msgs::JointState &msg)
 {
-    // std::cout << msg.position[0] << std::endl;
     for (int i = 0; i < 6; i++)
     {
         joints[i] = msg.position[i];
-        //std::cout<<"giunto "<<joints[i]<<std::endl;
     }
     joints_done = true;
 }
 
+//method to create frames of each aruco(id,rvec,tvec) and publish it in "tf"
 void addToTf(int id, cv::Vec3d rvec, cv::Vec3d tvec)
 {
-    //robot_wrist_rgbd_color_frame oppure robot_wrist_rgbd_color_optical_frame
-    //@todo capire se è visibile sto frame da qualche parte
+    //attach the frame on last camera frame
     tf2_ros::TransformBroadcaster tfb;
     geometry_msgs::TransformStamped transformStamped;
     transformStamped.header.frame_id = "robot_wrist_rgbd_color_optical_frame";
@@ -123,9 +122,9 @@ void addToTf(int id, cv::Vec3d rvec, cv::Vec3d tvec)
     ros::spinOnce();
 }
 
+//callback for each read image from camera
 void imageCallback(const sensor_msgs::ImageConstPtr &msg)
 {
-
     cv::Mat image, imageCopy;
     try
     {
@@ -168,12 +167,13 @@ void imageCallback(const sensor_msgs::ImageConstPtr &msg)
         cv::aruco::drawAxis(imageCopy, K, D, rvecs[i], tvecs[i], 0.1);
     }
 
-    // Show results
+    //Uncomment the following lines to show arucos on separate window
     //cv::imshow("out", imageCopy);
 
     //char key = (char) cv::waitKey(1);
 }
 
+//transform the aruco position to robot base frame
 geometry_msgs::TransformStamped getArucoTransformStamped(int id)
 {
     geometry_msgs::TransformStamped transformStamped;
@@ -190,15 +190,17 @@ geometry_msgs::TransformStamped getArucoTransformStamped(int id)
     return transformStamped;
 }
 
+//trajectory in operational space
 void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra)
 {
     std::cout << "Initializing operational space trajectory..." << std::endl;
     CartesianTrajectory *trajectory;
+
+    //compute linear cartesian trajectory given starting/end position/orientation and time
     trajectory = new CartesianTrajectory(pi, pf, PHI_i, PHI_f, ti, tf, Ts);
     std::cout << "Trajectory initialized!" << std::endl;
 
     int length = trajectory->get_length();
-    double previous_vel_[6];
     KDL::JntArray target_joints;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
 
@@ -211,31 +213,16 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
         "robot_arm_wrist_2_joint",
         "robot_arm_wrist_3_joint"};
 
+    //build inverse kinematics for joint and each point in trajectory
     for (int i = 0; i < length; i++)
     {
         double vel_[6];
         double acc_[6];
-
-        std::cout
-            << "\npoints "
-            << trajectory->dataPosition.coeff(0, i)
-            << " "
-            << trajectory->dataPosition.coeff(1, i)
-            << " "
-            << trajectory->dataPosition.coeff(2, i)
-            << " "
-            << trajectory->dataPosition.coeff(3, i)
-            << " "
-            << trajectory->dataPosition.coeff(4, i)
-            << " "
-            << trajectory->dataPosition.coeff(5, i)
-            << std::endl;
-
         target_joints = ra.IKinematics(
             trajectory->dataPosition.coeff(0, i),
             trajectory->dataPosition.coeff(1, i),
             trajectory->dataPosition.coeff(2, i),
-            trajectory->dataPosition.coeff(3, i), // @todo inspect the use of nan in orientation
+            trajectory->dataPosition.coeff(3, i), 
             trajectory->dataPosition.coeff(4, i),
             trajectory->dataPosition.coeff(5, i),
             joints,
@@ -249,6 +236,7 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
         bool check = true;
         for (int j = 0; j < 6; j++)
         {
+            //check if inverse kinematics provided joint values inside joint limits (-pi, pi)
             if (target_joints.data[j] > 3.14 || target_joints.data[j] < -3.14)
             {
                 check = false;
@@ -258,7 +246,7 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
 
         if (check)
         {
-            //if (i == 0 || i == round(length/2) || i == length -1) {
+            //if all joints are "good" we can send trajectory to robot
             std::cout << "Sending data to Ros" << std::endl;
 
             trajectory_msgs::JointTrajectoryPoint point;
@@ -270,34 +258,23 @@ void sendTrajectory(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, do
                 target_joints.data[3],
                 target_joints.data[4],
                 target_joints.data[5]};
-            /*point.velocities.resize(6);
-      point.velocities = {vel_[0],vel_[1],vel_[2],vel_[3],vel_[4],vel_[5]};
-      point.accelerations.resize(6);
-      point.accelerations = {
-        (vel_[0]-previous_vel_[0])/Ts,
-        (vel_[1]-previous_vel_[1])/Ts,
-        (vel_[2]-previous_vel_[2])/Ts,
-        (vel_[3]-previous_vel_[3])/Ts,
-        (vel_[4]-previous_vel_[4])/Ts,
-        (vel_[5]-previous_vel_[5])/Ts
-      };*/
             point.time_from_start = ros::Duration(i * Ts);
             points.push_back(point);
         }
-
-        for (int j = 0; j < 6; j++)
-            previous_vel_[j] = vel_[j];
     }
 
     goal.trajectory.points = points;
 
+    //send all points to server in order to make it move
     ArmClient->sendGoalAndWait(goal);
 }
 
+//trajectory in joint space
 void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, double ti, double tf, double Ts, RobotArm ra)
 {
     std::cout << "Initializing joint space trajectory..." << std::endl;
     JointPolTraj *trajectory;
+    //compute joint trajectory given starting/end position/orientation and time
     trajectory = new JointPolTraj(pi, pf, PHI_i, PHI_f, ra, joints, 6, ti, tf, Ts);
     MatrixXd jointPos = trajectory->getJointPos();
     MatrixXd jointVel = trajectory->getJointVel();
@@ -325,14 +302,6 @@ void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, dou
             jointPos.coeff(3, i),
             jointPos.coeff(4, i),
             jointPos.coeff(5, i)};
-        // point.velocities.resize(6);
-        // point.velocities = {
-        //     jointVel.coeff(0, i),
-        //     jointVel.coeff(1, i),
-        //     jointVel.coeff(2, i),
-        //     jointVel.coeff(3, i),
-        //     jointVel.coeff(4, i),
-        //     jointVel.coeff(5, i)};
 
         points.push_back(point);
     }
@@ -341,7 +310,8 @@ void sendJointTraj(MatrixXd pi, MatrixXd pf, MatrixXd PHI_i, MatrixXd PHI_f, dou
     ArmClient->sendGoalAndWait(goal);
 }
 
-void getVerticalGoal()
+//move the robot into a vertical position
+void goVertical()
 {
     control_msgs::FollowJointTrajectoryGoal goal;
     std::vector<trajectory_msgs::JointTrajectoryPoint> points;
@@ -354,6 +324,7 @@ void getVerticalGoal()
         "robot_arm_wrist_2_joint",
         "robot_arm_wrist_3_joint"};
 
+    //three points for the second joint are enough to make it go vertical from horizontal initial position
     double pos[]{0, -0.8, -PI2};
 
     trajectory_msgs::JointTrajectoryPoint point;
@@ -369,35 +340,11 @@ void getVerticalGoal()
     ArmClient->sendGoalAndWait(goal);
 }
 
-void goHome(double Ts,RobotArm ra) {
-    MatrixXd p_home(3, 1);
-    MatrixXd PHI_home(3, 1);
-    MatrixXd pi(3, 1);
-    MatrixXd PHI_i(3, 1);
-
-    p_home << 0.077, -0.161, 1.123;
-
-    PHI_home << 0, -PI, -PI2;
-
-    double ti = 0.0;
-    double tf = 4.0;
-    double alpha, beta, gamma;
-
-    //Moving to home
-    std::cout << "Moving to home... " << std::endl;
-    KDL::Frame fr = ra.FKinematics(joints);
-    pi << fr.p.x(), fr.p.y(), fr.p.z();
-    fr.M.GetRPY(alpha, beta, gamma);
-    PHI_i << alpha, beta, gamma;
-
-    sendTrajectory(pi, p_home, PHI_i, PHI_home, ti, tf, Ts, ra);
-}
-
+//pipeline for each aruco to pick and place it
 void pickAndPlaceSingleObject(
     int arucoId, MatrixXd detectionP, MatrixXd detectionPHI, double marginX, double marginY, double marginZ, MatrixXd finalPHI,
-    ros::Rate loop_rate, RobotArm ra, double Ts, bool useJointTraj, int startTime)
+    ros::Rate loop_rate, RobotArm ra, double Ts, bool useJointTraj, int startTime, bool goHome)
 {
-   
     //Support matrices for trajectory computation
     MatrixXd pf(3, 1);
     MatrixXd PHI_f(3, 1);
@@ -405,47 +352,49 @@ void pickAndPlaceSingleObject(
     MatrixXd PHI_i(3, 1);
     MatrixXd p_home(3, 1);
     MatrixXd PHI_home(3, 1);
-
     p_home << 0.077, -0.161, 1.123;
-
     PHI_home << 0, -PI, -PI2;
 
     double ti = 0.0;
     double tf = 4.0;
     double alpha, beta, gamma;
-
-    //Moving to home
-    std::cout << "Moving to home... " << std::endl;
+    
     KDL::Frame fr = ra.FKinematics(joints);
     pi << fr.p.x(), fr.p.y(), fr.p.z();
     fr.M.GetRPY(alpha, beta, gamma);
     PHI_i << alpha, beta, gamma;
 
+    //Moving to home position before reaching the aruco
+    std::cout << "Moving to home... " << std::endl;
     pf = p_home;
     PHI_f = PHI_home;
-
-    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime, startTime + 4, Ts, ra);
-
-    //First cube detection
-    std::cout << "Moving to detection point... " << std::endl;
+    if (goHome) {
+        sendTrajectory(pi, pf, PHI_i, PHI_f, 0, 4, Ts, ra);
+    } else {
+        sendJointTraj(pi, pf, PHI_i, PHI_f, 0, 4, Ts, ra);
+    }
 
     pi = p_home;
     PHI_i = PHI_home;
+
+    //Settle to the detection point
+    std::cout << "Moving to detection point... " << std::endl;
 
     pf = detectionP;
     PHI_f = detectionPHI;
 
     // Use joint space trajectory to move the manipulator
-    sendJointTraj(pi, pf, PHI_i, PHI_f, startTime + 4, startTime + 8, Ts, ra);
+    sendTrajectory(pi, pf, PHI_i, PHI_f, 0, 4, Ts, ra);
 
     std::cout << "Aruco detection..." << std::endl;
 
     geometry_msgs::TransformStamped transformStamped;
 
     //check to see if transformStamped is initialized, wait 1 seconds for be sure to obatin the correct transformStamped
-    //ros::Duration(1).sleep();
+    ros::Duration(1).sleep();
     while (ros::ok() && abs(transformStamped.transform.translation.x) < 0.001 && abs(transformStamped.transform.translation.y) < 0.001 && abs(transformStamped.transform.translation.z) < 0.001)
     {
+        //read the aruco frame
         transformStamped = getArucoTransformStamped(arucoId);
         ros::spinOnce();
         loop_rate.sleep();
@@ -458,8 +407,8 @@ void pickAndPlaceSingleObject(
     pf(0) += marginX;
     pf(1) += marginY;
     pf(2) += marginZ;
-
-    sendTrajectory(detectionP, pf, detectionPHI, finalPHI, startTime + 8, startTime + 10, Ts, ra);
+    //move to detected aruco
+    sendTrajectory(detectionP, pf, detectionPHI, finalPHI, 0, 4, Ts, ra);
 }
 
 /**
@@ -504,6 +453,7 @@ int main(int argc, char **argv)
     MatrixXd p_greenCube(3, 1);
     MatrixXd p_yellowCube(3, 1);
 
+    //manually defined positions for cube detection
     p_vertical_pose << 0, 0, 1.2;
     p_blueCube << 0.80, 0.318, 0.750;
     p_greenCube << 0.65, 0.218, 0.613;
@@ -534,30 +484,27 @@ int main(int argc, char **argv)
     int redCubeArucoId = 4;
 
     // Margin for not crashing with blue and green cube
-
-    double marginX = 0;
+    double marginX = -0.1;
     double marginY = 0;
-    double marginZ = 0.4;
+    double marginZ = 0.1;
 
     std::cout << "Moving to vertical configuration... " << std::endl;
     
-    //TODO, sistemare posizione yellow e blue. Provare a togliere o cambiare la home
-    getVerticalGoal();   
-    goHome(Ts, ra);
-    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, true, 0);
+    goVertical();   
+    pickAndPlaceSingleObject(blueCubeArucoId, p_blueCube, PHI_blueCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, true, 0, false);
 
-    marginX = -0.3;
-    marginY = 0;
-    marginZ = 0.08;
+    marginX = 0;//-0.1;
+    marginY = 0;//0.1;
+    marginZ = 0;//0.08;
 
-    pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, false, 0);
+    pickAndPlaceSingleObject(greenCubeArucoId, p_greenCube, PHI_greenCube, marginX, marginY, marginZ, PHI_parallel, loop_rate, ra, 0.1, false, 0, true);
 
     // Margin for not crashing with yellow cube
     marginX = 0;
     marginY = 0;
     marginZ = 0.4;
 
-    pickAndPlaceSingleObject(yellowCubeArucoId, p_yellowCube, PHI_yellowCube, marginX, marginY, marginZ, PHI_yellowCube, loop_rate, ra, 0.1, false, 0);
+    pickAndPlaceSingleObject(yellowCubeArucoId, p_yellowCube, PHI_yellowCube, marginX, marginY, marginZ, PHI_yellowCube, loop_rate, ra, 0.1, false, 0, true);
 
     while (ros::ok())
     {

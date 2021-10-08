@@ -20,6 +20,7 @@
 #include <Eigen/Geometry>
 #include <Eigen/Eigenvalues>
 
+//CLASS TO BUILD FORWARD AND INVERSE KINEMATICS
 class RobotArm
 {
 private:
