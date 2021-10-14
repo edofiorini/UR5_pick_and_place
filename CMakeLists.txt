@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   trajectory_msgs
+  tf
   # Vision
   message_generation
   sensor_msgs
@@ -222,8 +223,15 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 add_definitions(${EIGEN_DEFINITIONS})
 
 file(GLOB SOURCES
-    src/*.hpp
-    src/*.cpp
+    #src/*.hpp
+    src/kdl_kinematics.hpp
+    src/cartesian_trajectory.hpp
+    src/joint_pol_traj.hpp
+    #src/*.cpp
+    src/kdl_kinematics.cpp
+    src/cartesian_trajectory.cpp
+    src/joint_pol_traj.cpp
+    src/talker.cpp
 )
 
 add_executable(talker ${SOURCES})
