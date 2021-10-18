@@ -2,9 +2,9 @@
 
 Final project of "Robotics, Vision and Control" course. The goal is to program a pick and place task of a UR5 robot mounted on a mobile platform using a RealSense camera. 
 
-In our task the platform must be fixed and only the UR5 can move to pick the 4 cubes that are above the wall. To find the correct position and orientation of each cube we use aruco marker. Of course, to give the correct target to the robot these information are transformed respect the base frame of our robot. To detect the aruco there are different configuration, but after the pick and place pipeline of a single cube the robot reach a commun home configuration. 
+In our task the platform must be fixed and only the UR5 can move to pick the 4 cubes that are above the wall. To find the correct position and orientation of each cube we use aruco marker. Of course, to give the correct target to the robot these information are transformed with respect to the base frame of our robot. In order to "see" each aruco, we defined a point in 3d where the robot can see it and once detected it moves towards it and then go back in an home position to repeat again the procedure for next cube.
 
-The trajectory implemented are both in operetional space and configurational space. We use the firts to go from the detection point to the cube. Instead, the second is used to raise up the robot at the beginning of the task and to reach the home configuration. 
+The trajectories implemented are both in operational(linear) space and configurational space. We use the firt to go from the detection point to the cube. Instead, the second is used to raise up the robot at the beginning of the task and to reach the home configuration. 
 
 The work is based on ROS. This package, which includes trajectory and camera control, has been developed in C++.
 
